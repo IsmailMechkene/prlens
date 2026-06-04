@@ -1,0 +1,14 @@
+model: gpt-4o
+min_severity: low
+focus:
+  - security
+  - bugs
+  - performance
+  - style
+max_files: 50
+ignore_patterns:
+  - "*.lock"
+  - "*.min.js"
+  - "dist/**"
+  - "build/**"
+post_review: true

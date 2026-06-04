@@ -1,0 +1,17 @@
+# IDE / tooling
+.idea/
+.claude/
+
+# Environment
+.env
+
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets / keys
+*.pem
+
