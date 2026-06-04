@@ -22,3 +22,5 @@ class GitHubClient:
         except GithubException as ge:
             raise ValueError(f"Could not access repository '{repo_name}': {ge}")
         return  repo
+
+# TODO: Add GitHub App (JWT) support - US-1.1 CA-3 (Mazel bekri)
