@@ -1,14 +1,14 @@
-model: gpt-4o
-min_severity: low
-focus:
-  - security
-  - bugs
-  - performance
-  - style
-max_files: 50
-ignore_patterns:
+llm_model: gpt-4o
+min_severity: info
+target_languages:
+  - "java"
+  - "javascript"
+  - "typescript"
+  - "python"
+excluded_files:
   - "*.lock"
   - "*.min.js"
   - "dist/**"
   - "build/**"
-post_review: true
+reviewers_mapping:
+  security: "@security-team"

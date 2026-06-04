@@ -20,7 +20,7 @@ class Settings(BaseModel):
     llm_model: str = "gpt-4o"
     reviewers_mapping: dict[str, str] = Field(default_factory=dict)
 
-def load_settings(config_path: str = ".aireviewer.yml") -> Settings:
+def load_settings(config_path: str = "../../.aireviewer.yml") -> Settings:
     try:
         with open(config_path, "r") as file:
             data = yaml.safe_load(file)
