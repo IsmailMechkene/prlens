@@ -4,7 +4,6 @@ from openai import OpenAI
 import os
 
 
-
 class LLMClient:
     def __init__(self):
         load_dotenv()
