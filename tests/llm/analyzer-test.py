@@ -6,7 +6,7 @@ from prlens.config.settings import load_settings
 
 client = GitHubClient()
 fetcher = PRFetcher(client)
-pr = fetcher.fetch("IsmailMechkene/ai-pr-reviewer-test", 1)
+pr = fetcher.fetch("IsmailMechkene/ai-pr-reviewer-test", 2)
 
 llm = LLMClient()
 analyzer = Analyzer(llm)
