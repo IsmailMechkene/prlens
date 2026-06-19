@@ -16,6 +16,10 @@ class Severity(str, Enum):
     ERROR = "error"
     CRITICAL = "critical"
 
+class FileReviewResponse(BaseModel):
+    comments: list[ReviewComment] = Field(default_factory=list)
+    positives: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 class ReviewComment(BaseModel):
     file_path: str
