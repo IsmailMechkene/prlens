@@ -31,6 +31,36 @@ class PRPublisher:
 
         pull_request.set_labels(*labels)
 
-    def submit_review(self, pull_request, result):
+    def submit_review(self, pull_request: PullRequest, result: ReviewResult) -> None:
+        if result.score > 80 and not result.has_critical_issues:
+            pull_request.create_review(
+                body=(
+                    "PRLens approved this pull request.\n\n"
+                    "✅ Overall code quality meets expectations.\n"
+                    "No critical issues were detected."
+                ),
+                event="APPROVE"
+            )
+
+        elif result.score < 50 or result.has_critical_issues:
+            pull_request.create_review(
+                body=(
+                    "PRLens requests changes on this pull request.\n\n"
+                    "⚠️ Critical issues or significant quality concerns "
+                    "were detected.\n"
+                    "Please address the review findings before merging."
+                ),
+                event="REQUEST_CHANGES"
+            )
+
+        else:
+            pull_request.create_review(
+                body=(
+                    "PRLens completed its review.\n\n"
+                    "ℹ️ No blocking issues were found, but there are "
+                    "opportunities for improvement."
+                ),
+                event="COMMENT"
+            )
 
     def assign_reviewers(self, pull_request, settings):
