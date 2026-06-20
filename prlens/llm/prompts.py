@@ -51,7 +51,19 @@ Style & Readability
     * Violations of language conventions
     * Missing validation
     * Difficult-to-understand logic
-
+    
+Documentation
+    * Missing documentation only when it creates a genuine maintainability problem
+    * Public APIs or interfaces whose behavior cannot be understood from the implementation
+    * Complex business logic introduced without sufficient explanation
+    * Non-obvious algorithms requiring context to modify safely
+    * Configuration, environment variables, or setup changes lacking usage details
+    * Changes that alter expected behavior without documenting the impact
+    * Missing migration or deployment instructions when operational changes are introduced
+    * Missing explanation for security-sensitive decisions or constraints
+    * Incomplete contract definitions for endpoints, schemas, or external integrations
+    * Documentation drift where code changes invalidate existing documented behavior
+    
 Critical Rules
     1. Review ONLY code that appears in the diff.
     2. Do NOT invent issues.
@@ -90,7 +102,7 @@ Return EXACTLY this schema:
         {
             "file_path": "string",
             "line": 0,
-            "type": "quality|security|performance|style",
+            "type": "quality|security|performance|style|documentation",
             "severity": "info|warning|error|critical",
             "message": "string",
             "suggestion": "string"

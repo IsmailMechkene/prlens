@@ -8,6 +8,7 @@ class ReviewType(str, Enum):
     SECURITY = "security"
     PERFORMANCE = "performance"
     STYLE = "style"
+    DOCUMENTATION = "documentation"
 
 
 class Severity(str, Enum):
