@@ -1,3 +1,4 @@
+from prlens.config.settings import Settings
 from prlens.github.client import GitHubClient
 from github.PullRequest import PullRequest
 from prlens.models.review import ReviewType, ReviewResult
@@ -63,4 +64,16 @@ class PRPublisher:
                 event="COMMENT"
             )
 
-    def assign_reviewers(self, pull_request, settings):
+    def assign_reviewers(self, pull_request: PullRequest, result: ReviewResult, settings: Settings) -> None:
+        if not result.has_critical_issues:
+            return
+
+        reviewers = set()
+        for comment in result.comments:
+            reviewer = settings.reviewers_mapping.get(comment.type.value)
+            if reviewer:
+                reviewers.add(reviewer)
+
+        if reviewers:
+            pull_request.create_review_request(reviewers=list(reviewers))
+

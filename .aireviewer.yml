@@ -12,3 +12,5 @@ excluded_files:
   - "build/**"
 reviewers_mapping:
   security: "@security-team"
+  performance: "@perf-team"
+  quality: "@senior-devs"
