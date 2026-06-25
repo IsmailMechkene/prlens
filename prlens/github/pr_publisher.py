@@ -190,6 +190,4 @@ class PRPublisher:
         reviewers.discard(None)
 
         if reviewers:
-            pull_request.create_review_request(
-                reviewers=list(reviewers)
-            )
+            pull_request.create_review_request(reviewers=list(reviewers))
