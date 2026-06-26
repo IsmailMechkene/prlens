@@ -79,22 +79,22 @@ class PRPublisher:
             else "None"
         )
 
-        return dedent(f"""
-            ## PRLens Review Summary
+        return f"""
+## PRLens Review Summary
 
-            {badge}
+{badge}
 
-            **Score:** {result.score}/100
+**Score:** {result.score}/100
 
-            ### Issues by Severity
-            {severity_text}
+### Issues by Severity
+{severity_text}
 
-            ### Positive Observations
-            {positives_text}
+### Positive Observations
+{positives_text}
 
-            ### Recommendations
-            {recommendations_text}
-        """)
+### Recommendations
+{recommendations_text}
+"""
 
     def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment]) -> None:
         commit = list(pull_request.get_commits())[-1]

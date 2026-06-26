@@ -138,4 +138,7 @@ def build_user_prompt(file: FileChange) -> str:
         
         Diff:
         {file.patch or "No diff available"}
+        
+        IMPORTANT: When reporting a "line" in your JSON response, use the exact number shown
+        as the prefix in the diff above, not the original file's line number.
         """
