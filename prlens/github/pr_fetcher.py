@@ -13,7 +13,7 @@ class PRFetcher:
 
     def fetch(self, repo_name: str, pr_number: int) -> PR:
         pull_request = self.fetch_raw(repo_name, pr_number)
-        return self._map_to_pr(pull_request, repo_name)
+        return self.map_to_pr(pull_request, repo_name)
 
     def map_to_pr(self, pull_request: PullRequest, repo_name: str) -> PR:
         return PR(
