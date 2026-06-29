@@ -63,6 +63,9 @@ class PRPublisher:
     def _build_summary(self, result: ReviewResult) -> str:
         badge = self._determine_review_status(result)
 
+        outcome = self._determine_review_outcome(result)
+        score_text = "N/A" if outcome == ReviewOutcome.INCOMPLETE else f"{result.score}/100"
+
         severity_counts = Counter(comment.severity for comment in result.comments)
 
         severity_text = (
@@ -91,7 +94,7 @@ class PRPublisher:
 
 {badge}
 
-**Score:** {result.score}/100
+**Score:** {score_text}
 
 ### Issues by Severity
 {severity_text}
