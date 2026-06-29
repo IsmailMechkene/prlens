@@ -20,6 +20,8 @@ class ReviewOutcome(Enum):
 
 
 class PRPublisher:
+    SUMMARY_MARKER = "<!-- prlens-summary -->"
+
     SEVERITY_EMOJI = {
         Severity.INFO: "🔵",
         Severity.WARNING: "🟡",
@@ -117,7 +119,13 @@ class PRPublisher:
                 )
 
     def post_summary(self, pull_request: PullRequest, result: ReviewResult) -> None:
-        summary = self._build_summary(result)
+        summary = f"{self.SUMMARY_MARKER}\n{self._build_summary(result)}"
+
+        for comment in pull_request.get_issue_comments():
+            if self.SUMMARY_MARKER in (comment.body or ""):
+                comment.edit(body=summary)
+                return
+
         pull_request.create_issue_comment(body=summary)
 
     def apply_labels(self, pull_request: PullRequest, result: ReviewResult) -> None:

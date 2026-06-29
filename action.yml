@@ -1,0 +1,21 @@
+name: 'PRLens'
+description: 'AI-powered code review for GitHub Pull Requests'
+
+inputs:
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  openai_api_key:
+    description: 'Azure OpenAI API key'
+    required: true
+  openai_endpoint:
+    description: 'Azure OpenAI endpoint'
+    required: true
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    GITHUB_TOKEN: ${{ inputs.github_token }}
+    AZURE_OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+    AZURE_OPENAI_ENDPOINT: ${{ inputs.openai_endpoint }}
