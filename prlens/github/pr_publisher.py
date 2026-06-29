@@ -17,7 +17,7 @@ class ReviewOutcome(Enum):
     APPROVED = "approved"
     CHANGES_REQUESTED = "changes_requested"
     COMMENT = "comment"
-
+    INCOMPLETE = "incomplete"
 
 class PRPublisher:
     SUMMARY_MARKER = "<!-- prlens-summary -->"
@@ -34,6 +34,9 @@ class PRPublisher:
 
     @staticmethod
     def _determine_review_outcome(result: ReviewResult) -> ReviewOutcome:
+        if result.failed_files:
+            return ReviewOutcome.INCOMPLETE
+
         if result.score > 80 and not result.has_critical_issues:
             return ReviewOutcome.APPROVED
 
@@ -51,6 +54,9 @@ class PRPublisher:
 
         if outcome == ReviewOutcome.CHANGES_REQUESTED:
             return "⚠️ Changes Requested"
+
+        if outcome == ReviewOutcome.INCOMPLETE:
+            return "🟣 Review Incomplete"
 
         return "ℹ️ Reviewed"
 
@@ -139,6 +145,9 @@ class PRPublisher:
         if outcome == ReviewOutcome.CHANGES_REQUESTED:
             labels.append("needs-changes")
 
+        if outcome == ReviewOutcome.INCOMPLETE:
+            labels.append("incomplete-review")
+
         if any(comment.type == ReviewType.SECURITY for comment in result.comments):
             labels.append("security-concern")
 
@@ -173,6 +182,18 @@ class PRPublisher:
                     "Please address the review findings before merging."
                 ),
                 event="REQUEST_CHANGES",
+            )
+
+        elif outcome == ReviewOutcome.INCOMPLETE:
+            failed_list = ", ".join(result.failed_files)
+            pull_request.create_review(
+                body=(
+                    "PRLens could not complete the analysis for this pull request.\n\n"
+                    "🟣 The following files failed to be analyzed and were not reviewed:\n"
+                    f"{failed_list}\n\n"
+                    "Please review these files manually, or re-run the workflow."
+                ),
+                event="COMMENT",
             )
 
         else:

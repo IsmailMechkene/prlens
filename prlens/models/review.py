@@ -37,3 +37,4 @@ class ReviewResult(BaseModel):
     positives: list[str] = Field(default_factory=list)
     recommendations: list[str] = Field(default_factory=list)
     has_critical_issues: bool = False
+    failed_files: list[str] = Field(default_factory=list)
