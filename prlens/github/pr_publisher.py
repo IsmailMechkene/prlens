@@ -1,6 +1,5 @@
 from collections import Counter
 from enum import Enum
-from textwrap import dedent
 
 from github.PullRequest import PullRequest
 
