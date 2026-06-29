@@ -4,6 +4,8 @@ from prlens.models.review import Severity
 from prlens.models.pr import FileChange
 import yaml
 import fnmatch #Python module used for matching filenames
+from pathlib import Path
+
 
 
 class SupportedLanguages(str, Enum):
@@ -20,9 +22,14 @@ class Settings(BaseModel):
     llm_model: str = "gpt-4o"
     reviewers_mapping: dict[str, str] = Field(default_factory=dict)
 
-def load_settings(config_path: str = "../../.aireviewer.yml") -> Settings:
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def load_settings(config_path: str | None = None) -> Settings:
+    path = Path(config_path) if config_path else PROJECT_ROOT / ".aireviewer.yml"
+
     try:
-        with open(config_path, "r") as file:
+        with open(path, "r") as file:
             data = yaml.safe_load(file)
     except FileNotFoundError:
         return Settings()

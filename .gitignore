@@ -15,3 +15,5 @@ __pycache__/
 # Secrets / keys
 *.pem
 
+
+/CODE_REVIEW.md
