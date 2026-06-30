@@ -232,8 +232,18 @@ class PRPublisher:
             settings.reviewers_mapping.get(comment.type.value)
             for comment in result.comments
         }
-
         reviewers.discard(None)
 
-        if reviewers:
-            pull_request.create_review_request(reviewers=list(reviewers))
+        team_reviewers = []
+        individual_reviewers = []
+
+        for reviewer in reviewers:
+            if reviewer.startswith("team:"):
+                team_reviewers.append(reviewer.removeprefix("team:"))
+            else:
+                individual_reviewers.append(reviewer)
+
+        if individual_reviewers:
+            pull_request.create_review_request(reviewers=individual_reviewers)
+        if team_reviewers:
+            pull_request.create_review_request(team_reviewers=team_reviewers)

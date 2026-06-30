@@ -11,6 +11,6 @@ excluded_files:
   - "dist/**"
   - "build/**"
 reviewers_mapping:
-  security: "@security-team"
-  performance: "@perf-team"
-  quality: "@senior-devs"
+  security: "IsmailMechkene"
+  performance: "Kurasaki-67"
+  quality: "team:senior-devs"
