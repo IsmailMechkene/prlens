@@ -16,6 +16,7 @@ with open(event_path) as f:
 
 repo_name = os.getenv("GITHUB_REPOSITORY")
 pr_number = event_data["pull_request"]["number"]
+actor = os.getenv("GITHUB_ACTOR", "local-test-user")
 
 github_client = GitHubClient()
 llm_client = LLMClient()
@@ -24,4 +25,4 @@ analyzer = Analyzer(llm_client)
 pr_publisher = PRPublisher(github_client)
 
 agent = Agent(llm_client, pr_fetcher, pr_publisher, analyzer)
-agent.run(repo_name, pr_number)
+agent.run(repo_name, pr_number, actor)

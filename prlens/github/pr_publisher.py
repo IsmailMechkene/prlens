@@ -117,8 +117,7 @@ class PRPublisher:
             "APPROVED", "CHANGES_REQUESTED"):
                 review.dismiss(message="Superseded by a new PRLens review.")
 
-    def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment]) -> None:
-        authenticated_user = self.client.get_authenticated_user()
+    def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment], authenticated_user: str) -> None:
         self._delete_previous_inline_comments(pull_request, authenticated_user)
 
         commit = list(pull_request.get_commits())[-1]
@@ -177,8 +176,7 @@ class PRPublisher:
         if labels:
             pull_request.set_labels(*labels)
 
-    def submit_review(self, pull_request: PullRequest, result: ReviewResult) -> None:
-        authenticated_user = self.client.get_authenticated_user()
+    def submit_review(self, pull_request: PullRequest, result: ReviewResult, authenticated_user: str) -> None:
         self._dismiss_previous_reviews(pull_request, authenticated_user)
 
         outcome = self._determine_review_outcome(result)
