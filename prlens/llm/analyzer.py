@@ -1,10 +1,12 @@
 import json
+
 from prlens.llm.client import LLMClient
 from prlens.llm.prompts import SYSTEM_PROMPT, build_user_prompt
 from prlens.models.pr import PR, FileChange
 from prlens.models.review import ReviewComment, ReviewResult, Severity, FileReviewResponse
 from prlens.config.settings import Settings, filter_files
 
+from concurrent.futures import ThreadPoolExecutor
 
 
 class Analyzer:
@@ -24,14 +26,18 @@ class Analyzer:
         all_recommendations = []
         failed_files = []
 
-        for file in filtered_files:
-            try:
-                analyzed_file = self.analyze_file(file)
-                all_comments.extend(analyzed_file.comments)
-                all_positives.extend(analyzed_file.positives)
-                all_recommendations.extend(analyzed_file.recommendations)
-            except Exception as e:
-                failed_files.append(file.filename)
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(self.analyze_file, file): file for file in filtered_files}
+
+            for future in futures:
+                file = futures[future]
+                try:
+                    analyzed_file = future.result()
+                    all_comments.extend(analyzed_file.comments)
+                    all_positives.extend(analyzed_file.positives)
+                    all_recommendations.extend(analyzed_file.recommendations)
+                except Exception as e:
+                    failed_files.append(file.filename)
 
         score = self._calculate_score(all_comments)
 
