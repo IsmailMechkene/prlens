@@ -145,8 +145,8 @@ class PRPublisher:
 
         for comment in pull_request.get_issue_comments():
             if self.SUMMARY_MARKER in (comment.body or ""):
-                comment.edit(body=summary)
-                return
+                comment.delete()
+                break
 
         pull_request.create_issue_comment(body=summary)
 

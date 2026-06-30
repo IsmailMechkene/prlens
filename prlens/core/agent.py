@@ -20,7 +20,7 @@ class Agent:
         result = self.analyzer.analyze_pr(pr, settings)
 
         self.pr_publisher.apply_labels(github_pr, result)
-        self.pr_publisher.submit_review(github_pr, result, actor)
-        self.pr_publisher.post_inline_comments(github_pr, result.comments, actor)
         self.pr_publisher.post_summary(github_pr, result)
+        self.pr_publisher.post_inline_comments(github_pr, result.comments, actor)
+        self.pr_publisher.submit_review(github_pr, result, actor)
         self.pr_publisher.assign_reviewers(github_pr, result, settings)
