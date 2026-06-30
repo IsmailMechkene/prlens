@@ -47,6 +47,8 @@ class Analyzer:
         )
 
     def _parse_response(self, response: str) -> FileReviewResponse:
+        raise ValueError("TEST: forcing a failure")
+
         response = response.strip()
         if response.startswith("```"):
             response = response.split("```")[1]

@@ -106,7 +106,21 @@ class PRPublisher:
 {recommendations_text}
 """
 
+    def _delete_previous_inline_comments(self, pull_request: PullRequest, authenticated_user: str) -> None:
+        for comment in pull_request.get_review_comments():
+            if comment.user.login in ("github-actions[bot]", authenticated_user):
+                comment.delete()
+
+    def _dismiss_previous_reviews(self, pull_request: PullRequest, authenticated_user: str) -> None:
+        for review in pull_request.get_reviews():
+            if review.user.login in ("github-actions[bot]", authenticated_user) and review.state in (
+            "APPROVED", "CHANGES_REQUESTED"):
+                review.dismiss(message="Superseded by a new PRLens review.")
+
     def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment]) -> None:
+        authenticated_user = self.client.get_authenticated_user()
+        self._delete_previous_inline_comments(pull_request, authenticated_user)
+
         commit = list(pull_request.get_commits())[-1]
 
         for comment in comments:
@@ -164,6 +178,9 @@ class PRPublisher:
             pull_request.set_labels(*labels)
 
     def submit_review(self, pull_request: PullRequest, result: ReviewResult) -> None:
+        authenticated_user = self.client.get_authenticated_user()
+        self._dismiss_previous_reviews(pull_request, authenticated_user)
+
         outcome = self._determine_review_outcome(result)
 
         if outcome == ReviewOutcome.APPROVED:

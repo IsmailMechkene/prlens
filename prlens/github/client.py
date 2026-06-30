@@ -16,11 +16,15 @@ class GitHubClient:
         except Exception as e:
             print(f"An error occurred when connecting to GitHub: {e}")
 
-    def get_repo(self, repo_name: str) -> Repository.Repository: #Return type ->
+    def get_authenticated_user(self) -> str:
+        return self.client.get_user().login
+
+    def get_repo(self, repo_name: str) -> Repository.Repository:
         try:
             repo = self.client.get_repo(repo_name)
         except GithubException as ge:
             raise ValueError(f"Could not access repository '{repo_name}': {ge}")
         return  repo
+
 
 # TODO: Add GitHub App (JWT) support - US-1.1 CA-3 (Mazel bekri)
