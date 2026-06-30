@@ -2,6 +2,7 @@ from collections import Counter
 from enum import Enum
 
 from github.PullRequest import PullRequest
+from github import GithubException
 
 from prlens.config.settings import Settings
 from prlens.github.client import GitHubClient
@@ -240,10 +241,13 @@ class PRPublisher:
         for reviewer in reviewers:
             if reviewer.startswith("team:"):
                 team_reviewers.append(reviewer.removeprefix("team:"))
-            else:
+            elif reviewer != pull_request.user.login:
                 individual_reviewers.append(reviewer)
 
-        if individual_reviewers:
-            pull_request.create_review_request(reviewers=individual_reviewers)
-        if team_reviewers:
-            pull_request.create_review_request(team_reviewers=team_reviewers)
+        try:
+            if individual_reviewers:
+                pull_request.create_review_request(reviewers=individual_reviewers)
+            if team_reviewers:
+                pull_request.create_review_request(team_reviewers=team_reviewers)
+        except GithubException as e:
+            print(f"Warning: failed to assign reviewers: {e}")
