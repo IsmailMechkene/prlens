@@ -26,7 +26,7 @@ class Analyzer:
         all_recommendations = []
         failed_files = []
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=settings.max_workers) as executor:
             futures = {executor.submit(self.analyze_file, file): file for file in filtered_files}
 
             for future in futures:
@@ -38,6 +38,7 @@ class Analyzer:
                     all_recommendations.extend(analyzed_file.recommendations)
                 except Exception as e:
                     failed_files.append(file.filename)
+                    print(f"Warning: failed to analyze {file.filename}: {e}")
 
         score = self._calculate_score(all_comments)
 

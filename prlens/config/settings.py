@@ -21,6 +21,7 @@ class Settings(BaseModel):
     min_severity: Severity = Severity.INFO
     llm_model: str = "gpt-4o"
     reviewers_mapping: dict[str, str] = Field(default_factory=dict)
+    max_workers: int = 5
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 

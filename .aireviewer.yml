@@ -14,3 +14,4 @@ reviewers_mapping:
   security: "IsmailMechkene"
   performance: "Kurasaki-67"
   quality: "team:senior-devs"
+max_workers: 5
