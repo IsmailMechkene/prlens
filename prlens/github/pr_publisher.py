@@ -42,6 +42,9 @@ class PRPublisher:
 
 
     def _determine_review_outcome(self, result: ReviewResult) -> ReviewOutcome:
+        if result.total_files == 0:
+            return ReviewOutcome.COMMENT
+
         if len(result.failed_files) == result.total_files and result.total_files > 0 :
             return ReviewOutcome.TOTAL_FAILURE
 
