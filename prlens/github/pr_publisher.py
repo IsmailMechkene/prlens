@@ -261,7 +261,7 @@ class PRPublisher:
             return
 
         reviewers = {
-            settings.reviewers_mapping.get(comment.type.value)
+            settings.reviewers_mapping.get(comment.type)
             for comment in result.comments
         }
         reviewers.discard(None)

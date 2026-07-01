@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, Field
-from prlens.models.review import Severity
+from prlens.models.review import Severity, ReviewType
 from prlens.models.pr import FileChange
 import yaml
 import fnmatch #Python module used for matching filenames
@@ -20,7 +20,7 @@ class Settings(BaseModel):
     target_languages: list[SupportedLanguages] = Field(default_factory=list)
     min_severity: Severity = Severity.INFO
     llm_model: str = "gpt-4o"
-    reviewers_mapping: dict[str, str] = Field(default_factory=dict)
+    reviewers_mapping: dict[ReviewType, str] = Field(default_factory=dict)
     max_workers: int = 5
     approve_threshold: int = 80
     changes_threshold: int = 50
