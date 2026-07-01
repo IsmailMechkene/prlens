@@ -82,10 +82,6 @@ class Analyzer:
     def _parse_response(self, response: str) -> FileReviewResponse:
         response = response.strip()
 
-        if response.startswith("```"):
-            response = response.split("```")[1]
-            response = response.replace("json", "", 1)
-
         data = json.loads(response)
         return FileReviewResponse(**data)
 

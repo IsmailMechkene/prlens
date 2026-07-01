@@ -25,9 +25,8 @@ class LLMClient:
     def generate(self, prompt: str) -> str:
         response = self.client.chat.completions.create(  #ChatCompletion object
             model= self.model,
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
+            messages = [{"role": "user", "content": prompt}],
+            response_format = {"type": "json_object"}
         )
 
         return response.choices[0].message.content
