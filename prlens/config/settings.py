@@ -38,10 +38,24 @@ def load_settings(config_path: str | None = None) -> Settings:
     return Settings(**data)
 
 def filter_files(files: list[FileChange], settings: Settings) -> list[FileChange]:
+    EXTENSION_TO_LANGUAGE = {
+        ".py": SupportedLanguages.PYTHON,
+        ".js": SupportedLanguages.JAVASCRIPT,
+        ".ts": SupportedLanguages.TYPESCRIPT,
+        ".java": SupportedLanguages.JAVA,
+    }
+
     supported_files = []
+
     for file in files:
+        file_extension = Path(file.filename).suffix
+        language = EXTENSION_TO_LANGUAGE.get(file_extension)
+        language_accepted = (
+                not settings.target_languages
+                or language in settings.target_languages
+        )
         excluded = any(fnmatch.fnmatch(file.filename, pattern) for pattern in settings.excluded_files)
-        if not excluded:
+        if not excluded and language_accepted:
             supported_files.append(file)
 
     return supported_files
