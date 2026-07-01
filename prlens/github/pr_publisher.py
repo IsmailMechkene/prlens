@@ -172,8 +172,9 @@ class PRPublisher:
             if self.SUMMARY_MARKER in (comment.body or ""):
                 comment.delete()
                 break
-
-        pull_request.create_issue_comment(body=summary)
+        outcome = self._determine_review_outcome(result)
+        if not (outcome == ReviewOutcome.COMMENT and result.total_files == 0):
+            pull_request.create_issue_comment(body=summary)
 
     def apply_labels(self, pull_request: PullRequest, result: ReviewResult) -> None:
         labels = []
@@ -250,6 +251,20 @@ class PRPublisher:
                         "⛔ All files failed to be analyzed. This may indicate a rate limit, "            
                         "API outage, or configuration issue.\n"            
                         "Please re-run the workflow or check the action logs."
+                    ),
+                    event="COMMENT",
+                )
+
+            elif outcome == ReviewOutcome.COMMENT and result.total_files == 0:
+                pull_request.create_review(
+                    body=(
+                        "PRLens did not review any files in this pull request.\n\n"
+                        "⚠️ None of the changed files match the configured target languages "
+                        "or all files were excluded by your `.aireviewer.yml` rules.\n\n"
+                        "To enable AI review, either:\n"
+                        "- Add supported file types (`.py`, `.js`, `.ts`, `.java`) to your PR\n"
+                        "- Update `target_languages` in `.aireviewer.yml`\n"
+                        "- Review this pull request manually"
                     ),
                     event="COMMENT",
                 )
