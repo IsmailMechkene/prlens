@@ -141,12 +141,18 @@ class PRPublisher:
             if comment.line is None:
                 pull_request.create_issue_comment(body=body)
             else:
-                pull_request.create_review_comment(
-                    body=body,
-                    commit=commit,
-                    path=comment.file_path,
-                    line=comment.line,
-                )
+                try:
+                    pull_request.create_review_comment(
+                        body=body,
+                        commit=commit,
+                        path=comment.file_path,
+                        line=comment.line,
+                    )
+                except GithubException as e:
+                    print(
+                        f"Warning: could not post inline comment on {comment.file_path}:{comment.line}, "
+                        f"falling back to issue comment: {e}")
+                    pull_request.create_issue_comment(body=body)
 
     def post_summary(self, pull_request: PullRequest, result: ReviewResult) -> None:
         summary = f"{self.SUMMARY_MARKER}\n{self._build_summary(result)}"
