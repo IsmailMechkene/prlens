@@ -1,13 +1,13 @@
+import json
+import os
+
+from prlens.config.settings import load_settings
 from prlens.core.agent import Agent
 from prlens.github.client import GitHubClient
 from prlens.github.pr_fetcher import PRFetcher
 from prlens.github.pr_publisher import PRPublisher
 from prlens.llm.analyzer import Analyzer
 from prlens.llm.client import LLMClient
-
-import json
-import os
-
 
 
 event_path = os.getenv("GITHUB_EVENT_PATH")
@@ -18,11 +18,23 @@ repo_name = os.getenv("GITHUB_REPOSITORY")
 pr_number = event_data["pull_request"]["number"]
 actor = os.getenv("GITHUB_ACTOR", "local-test-user")
 
+settings = load_settings()
+
 github_client = GitHubClient()
-llm_client = LLMClient()
+
+model = settings.llm_model
+llm_client = LLMClient(model)
+
 pr_fetcher = PRFetcher(github_client)
 analyzer = Analyzer(llm_client)
 pr_publisher = PRPublisher(github_client)
 
-agent = Agent(llm_client, pr_fetcher, pr_publisher, analyzer)
+agent = Agent(
+    llm_client,
+    pr_fetcher,
+    pr_publisher,
+    analyzer,
+    settings,
+)
+
 agent.run(repo_name, pr_number, actor)

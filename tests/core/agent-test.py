@@ -12,4 +12,4 @@ analyzer = Analyzer(llm_client)
 pr_publisher = PRPublisher(github_client)
 
 agent = Agent(llm_client, pr_fetcher, pr_publisher, analyzer)
-agent.run("IsmailMechkene/ai-pr-reviewer-test", 4)
+agent.run("IsmailMechkene/ai-pr-reviewer-test", 4, "IsmailMechkene")
