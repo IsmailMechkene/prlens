@@ -45,6 +45,10 @@ class PRPublisher:
         if len(result.failed_files) == result.total_files and result.total_files > 0 :
             return ReviewOutcome.TOTAL_FAILURE
 
+        if (result.total_files > 0 and not result.comments and not result.positives
+            and not result.recommendations and not result.failed_files):
+            return ReviewOutcome.COMMENT
+
         if result.failed_files:
             return ReviewOutcome.INCOMPLETE
 
