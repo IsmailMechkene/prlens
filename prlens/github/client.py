@@ -4,17 +4,13 @@ import os
 
 class GitHubClient:
     def __init__(self):
-
         load_dotenv()
         self.token = os.getenv("GITHUB_TOKEN")
 
         if not self.token:
             raise ValueError("GITHUB_TOKEN not found in environment")
 
-        try:
-            self.client = Github(self.token)
-        except Exception as e:
-            print(f"An error occurred when connecting to GitHub: {e}")
+        self.client = Github(self.token)
 
     def get_repo(self, repo_name: str) -> Repository.Repository:
         try:
