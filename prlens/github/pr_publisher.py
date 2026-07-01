@@ -33,28 +33,31 @@ class PRPublisher:
         Severity.CRITICAL: "🔴",
     }
 
-    def __init__(self, client: GitHubClient):
+    def __init__(self, client: GitHubClient, settings: Settings):
         self.client = client
 
-    @staticmethod
-    def _determine_review_outcome(result: ReviewResult) -> ReviewOutcome:
+        self.approve_threshold = settings.approve_threshold
+        self.changes_threshold = settings.changes_threshold
+        self.large_pr_threshold = settings.large_pr_threshold
+
+
+    def _determine_review_outcome(self, result: ReviewResult) -> ReviewOutcome:
         if len(result.failed_files) == result.total_files and result.total_files > 0 :
             return ReviewOutcome.TOTAL_FAILURE
 
         if result.failed_files:
             return ReviewOutcome.INCOMPLETE
 
-        if result.score > 80 and not result.has_critical_issues:
+        if result.score > self.approve_threshold and not result.has_critical_issues:
             return ReviewOutcome.APPROVED
 
-        if result.score < 50 or result.has_critical_issues:
+        if result.score < self.changes_threshold or result.has_critical_issues:
             return ReviewOutcome.CHANGES_REQUESTED
 
         return ReviewOutcome.COMMENT
 
-    @staticmethod
-    def _determine_review_status(result: ReviewResult) -> str:
-        outcome = PRPublisher._determine_review_outcome(result)
+    def _determine_review_status(self, result: ReviewResult) -> str:
+        outcome = self._determine_review_outcome(result)
 
         if outcome == ReviewOutcome.APPROVED:
             return "✅ Approved"
@@ -130,7 +133,7 @@ class PRPublisher:
     def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment], authenticated_user: str) -> None:
         self._delete_previous_inline_comments(pull_request, authenticated_user)
 
-        commit = list(pull_request.get_commits())[-1]
+        commit = pull_request.get_commits().reversed[0]
 
         for comment in comments:
             emoji = self.SEVERITY_EMOJI.get(comment.severity, "⚪")
@@ -185,7 +188,7 @@ class PRPublisher:
         if any(comment.type == ReviewType.SECURITY for comment in result.comments):
             labels.append("security-concern")
 
-        if pull_request.changed_files > 20:
+        if pull_request.changed_files > self.large_pr_threshold:
             labels.append("large-pr")
 
         if any(comment.type == ReviewType.DOCUMENTATION for comment in result.comments):

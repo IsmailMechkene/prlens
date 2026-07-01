@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     pr_fetcher = PRFetcher(github_client)
     analyzer = Analyzer(llm_client)
-    pr_publisher = PRPublisher(github_client)
+    pr_publisher = PRPublisher(github_client, settings)
 
     agent = Agent(
         llm_client,

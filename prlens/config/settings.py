@@ -22,6 +22,9 @@ class Settings(BaseModel):
     llm_model: str = "gpt-4o"
     reviewers_mapping: dict[str, str] = Field(default_factory=dict)
     max_workers: int = 5
+    approve_threshold: int = 80
+    changes_threshold: int = 50
+    large_pr_threshold: int = 20
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 

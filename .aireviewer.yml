@@ -1,17 +1,26 @@
 llm_model: gpt-4o
+
 min_severity: info
+
 target_languages:
   - "java"
   - "javascript"
   - "typescript"
   - "python"
+
 excluded_files:
   - "*.lock"
   - "*.min.js"
   - "dist/**"
   - "build/**"
+
 reviewers_mapping:
   security: "IsmailMechkene"
   performance: "Kurasaki-67"
   quality: "team:senior-devs"
+
 max_workers: 5
+
+approve_threshold: 80
+changes_threshold: 50
+large_pr_threshold: 20

@@ -11,10 +11,6 @@ class PRFetcher:
         repo = self.client.get_repo(repo_name)
         return repo.get_pull(pr_number)
 
-    def fetch(self, repo_name: str, pr_number: int) -> PR:
-        pull_request = self.fetch_raw(repo_name, pr_number)
-        return self.map_to_pr(pull_request, repo_name)
-
     def map_to_pr(self, pull_request: PullRequest, repo_name: str) -> PR:
         return PR(
             title=pull_request.title,
@@ -22,7 +18,7 @@ class PRFetcher:
             body=pull_request.body,
             number=pull_request.number,
             repo=repo_name,
-            status=PRStatus(pull_request.state),
+            status=PRStatus.MERGED if pull_request.merged else PRStatus(pull_request.state),
             source_branch=pull_request.head.ref,
             target_branch=pull_request.base.ref,
             labels=[label.name for label in pull_request.labels],

@@ -1,4 +1,5 @@
 from prlens.models.pr import FileChange
+from pathlib import Path
 
 SYSTEM_PROMPT = """
 You are PRLens, an expert AI Pull Request reviewer.
@@ -126,9 +127,16 @@ Validate your output before responding:
     * line must be an integer or null
 """
 
+EXTENSION_TO_LANGUAGE = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".java": "java",
+}
 
 def build_user_prompt(file: FileChange) -> str:
-    language = file.filename.split(".")[-1]
+    extension = Path(file.filename).suffix
+    language = EXTENSION_TO_LANGUAGE.get(extension, extension.lstrip(".") or "unknown")
 
     return f"""
         Review the following code change:
