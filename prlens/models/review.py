@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ReviewType(str, Enum):
@@ -17,11 +17,6 @@ class Severity(str, Enum):
     ERROR = "error"
     CRITICAL = "critical"
 
-class FileReviewResponse(BaseModel):
-    comments: list[ReviewComment] = Field(default_factory=list)
-    positives: list[str] = Field(default_factory=list)
-    recommendations: list[str] = Field(default_factory=list)
-
 class ReviewComment(BaseModel):
     file_path: str
     line: int | None = None
@@ -30,6 +25,12 @@ class ReviewComment(BaseModel):
     message: str
     suggestion: str | None = None
 
+class FileReviewResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    comments: list[ReviewComment] = Field(default_factory=list)
+    positives: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 class ReviewResult(BaseModel):
     score: int = Field(ge=0, le=100)

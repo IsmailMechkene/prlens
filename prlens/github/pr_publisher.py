@@ -202,59 +202,62 @@ class PRPublisher:
 
         outcome = self._determine_review_outcome(result)
 
-        if outcome == ReviewOutcome.APPROVED:
-            pull_request.create_review(
-                body=(
-                    "PRLens approved this pull request.\n\n"
-                    "✅ Overall code quality meets expectations.\n"
-                    "No critical issues were detected."
-                ),
-                event="APPROVE",
-            )
+        try:
+            if outcome == ReviewOutcome.APPROVED:
+                pull_request.create_review(
+                    body=(
+                        "PRLens approved this pull request.\n\n"
+                        "✅ Overall code quality meets expectations.\n"
+                        "No critical issues were detected."
+                    ),
+                    event="APPROVE",
+                )
 
-        elif outcome == ReviewOutcome.CHANGES_REQUESTED:
-            pull_request.create_review(
-                body=(
-                    "PRLens requests changes on this pull request.\n\n"
-                    "⚠️ Critical issues or significant quality concerns "
-                    "were detected.\n"
-                    "Please address the review findings before merging."
-                ),
-                event="REQUEST_CHANGES",
-            )
+            elif outcome == ReviewOutcome.CHANGES_REQUESTED:
+                pull_request.create_review(
+                    body=(
+                        "PRLens requests changes on this pull request.\n\n"
+                        "⚠️ Critical issues or significant quality concerns "
+                        "were detected.\n"
+                        "Please address the review findings before merging."
+                    ),
+                    event="REQUEST_CHANGES",
+                )
 
-        elif outcome == ReviewOutcome.INCOMPLETE:
-            failed_list = ", ".join(result.failed_files)
-            pull_request.create_review(
-                body=(
-                    "PRLens could not complete the analysis for this pull request.\n\n"
-                    "🟣 The following files failed to be analyzed and were not reviewed:\n"
-                    f"{failed_list}\n\n"
-                    "Please review these files manually, or re-run the workflow."
-                ),
-                event="COMMENT",
-            )
+            elif outcome == ReviewOutcome.INCOMPLETE:
+                failed_list = ", ".join(result.failed_files)
+                pull_request.create_review(
+                    body=(
+                        "PRLens could not complete the analysis for this pull request.\n\n"
+                        "🟣 The following files failed to be analyzed and were not reviewed:\n"
+                        f"{failed_list}\n\n"
+                        "Please review these files manually, or re-run the workflow."
+                    ),
+                    event="COMMENT",
+                )
 
-        elif outcome == ReviewOutcome.TOTAL_FAILURE:
-            pull_request.create_review(
-                body=(
-                    "PRLens failed to complete the analysis for this pull request.\n\n"            
-                    "⛔ All files failed to be analyzed. This may indicate a rate limit, "            
-                    "API outage, or configuration issue.\n"            
-                    "Please re-run the workflow or check the action logs."
-                ),
-                event="COMMENT",
-            )
+            elif outcome == ReviewOutcome.TOTAL_FAILURE:
+                pull_request.create_review(
+                    body=(
+                        "PRLens failed to complete the analysis for this pull request.\n\n"            
+                        "⛔ All files failed to be analyzed. This may indicate a rate limit, "            
+                        "API outage, or configuration issue.\n"            
+                        "Please re-run the workflow or check the action logs."
+                    ),
+                    event="COMMENT",
+                )
 
-        else:
-            pull_request.create_review(
-                body=(
-                    "PRLens completed its review.\n\n"
-                    "ℹ️ No blocking issues were found, but there are "
-                    "opportunities for improvement."
-                ),
-                event="COMMENT",
-            )
+            else:
+                pull_request.create_review(
+                    body=(
+                        "PRLens completed its review.\n\n"
+                        "ℹ️ No blocking issues were found, but there are "
+                        "opportunities for improvement."
+                    ),
+                    event="COMMENT",
+                )
+        except GithubException as e:
+            logger.warning("Failed to submit review: %s", e)
 
     def assign_reviewers(self, pull_request: PullRequest, result: ReviewResult, settings: Settings) -> None:
         if not result.has_critical_issues:
