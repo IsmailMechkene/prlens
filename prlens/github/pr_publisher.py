@@ -1,5 +1,6 @@
 from collections import Counter
 from enum import Enum
+import logging
 
 from github.PullRequest import PullRequest
 from github import GithubException
@@ -13,6 +14,7 @@ from prlens.models.review import (
     Severity,
 )
 
+logger = logging.getLogger(__name__)
 
 class ReviewOutcome(Enum):
     APPROVED = "approved"
@@ -149,9 +151,8 @@ class PRPublisher:
                         line=comment.line,
                     )
                 except GithubException as e:
-                    print(
-                        f"Warning: could not post inline comment on {comment.file_path}:{comment.line}, "
-                        f"falling back to issue comment: {e}")
+                    logger.warning("Could not post inline comment on %s:%s, falling back to issue comment: %s",
+                                   comment.file_path, comment.line, e)
                     pull_request.create_issue_comment(body=body)
 
     def post_summary(self, pull_request: PullRequest, result: ReviewResult) -> None:
@@ -277,4 +278,4 @@ class PRPublisher:
             if team_reviewers:
                 pull_request.create_review_request(team_reviewers=team_reviewers)
         except GithubException as e:
-            print(f"Warning: failed to assign reviewers: {e}")
+            logger.warning("Failed to assign reviewers: %s", e)

@@ -1,4 +1,5 @@
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from prlens.config.settings import Settings, filter_files
@@ -12,6 +13,7 @@ from prlens.models.review import (
     Severity,
 )
 
+logger = logging.getLogger(__name__)
 
 class Analyzer:
     def __init__(self, llm: LLMClient):
@@ -57,7 +59,7 @@ class Analyzer:
 
                 except Exception as e:
                     failed_files.append(file.filename)
-                    print(f"Warning: failed to analyze {file.filename}: {e}")
+                    logger.warning("Failed to analyze %s: %s", file.filename, e)
 
         all_comments = [
             comment for comment in all_comments
