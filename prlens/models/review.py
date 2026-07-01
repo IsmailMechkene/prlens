@@ -38,3 +38,4 @@ class ReviewResult(BaseModel):
     recommendations: list[str] = Field(default_factory=list)
     has_critical_issues: bool = False
     failed_files: list[str] = Field(default_factory=list)
+    total_files: int = 0

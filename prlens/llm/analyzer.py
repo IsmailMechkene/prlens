@@ -21,6 +21,7 @@ class Analyzer:
 
     def analyze_pr(self, pr: PR, settings: Settings) -> ReviewResult:
         filtered_files = filter_files(pr.files, settings)
+        total_files = len(filtered_files)
         all_comments = []
         all_positives = []
         all_recommendations = []
@@ -36,6 +37,7 @@ class Analyzer:
                     all_comments.extend(analyzed_file.comments)
                     all_positives.extend(analyzed_file.positives)
                     all_recommendations.extend(analyzed_file.recommendations)
+
                 except Exception as e:
                     failed_files.append(file.filename)
                     print(f"Warning: failed to analyze {file.filename}: {e}")
@@ -50,7 +52,8 @@ class Analyzer:
             positives = all_positives,
             recommendations = all_recommendations,
             has_critical_issues = has_critical_issues,
-            failed_files = failed_files
+            failed_files = failed_files,
+            total_files = total_files
         )
 
     def _parse_response(self, response: str) -> FileReviewResponse:

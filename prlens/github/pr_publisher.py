@@ -19,6 +19,7 @@ class ReviewOutcome(Enum):
     CHANGES_REQUESTED = "changes_requested"
     COMMENT = "comment"
     INCOMPLETE = "incomplete"
+    TOTAL_FAILURE = "total_failure"
 
 class PRPublisher:
     SUMMARY_MARKER = "<!-- prlens-summary -->"
@@ -35,6 +36,9 @@ class PRPublisher:
 
     @staticmethod
     def _determine_review_outcome(result: ReviewResult) -> ReviewOutcome:
+        if len(result.failed_files) == result.total_files and result.total_files > 0 :
+            return ReviewOutcome.TOTAL_FAILURE
+
         if result.failed_files:
             return ReviewOutcome.INCOMPLETE
 
@@ -59,13 +63,16 @@ class PRPublisher:
         if outcome == ReviewOutcome.INCOMPLETE:
             return "🟣 Review Incomplete"
 
+        if outcome == ReviewOutcome.TOTAL_FAILURE:
+            return "⛔ Failed Review"
+
         return "ℹ️ Reviewed"
 
     def _build_summary(self, result: ReviewResult) -> str:
         badge = self._determine_review_status(result)
 
         outcome = self._determine_review_outcome(result)
-        score_text = "N/A" if outcome == ReviewOutcome.INCOMPLETE else f"{result.score}/100"
+        score_text = "N/A" if outcome in (ReviewOutcome.INCOMPLETE, ReviewOutcome.TOTAL_FAILURE) else f"{result.score}/100"
 
         severity_counts = Counter(comment.severity for comment in result.comments)
 
@@ -165,6 +172,9 @@ class PRPublisher:
         if outcome == ReviewOutcome.INCOMPLETE:
             labels.append("incomplete-review")
 
+        if outcome == ReviewOutcome.TOTAL_FAILURE:
+            labels.append("failed_review")
+
         if any(comment.type == ReviewType.SECURITY for comment in result.comments):
             labels.append("security-concern")
 
@@ -211,6 +221,17 @@ class PRPublisher:
                     "🟣 The following files failed to be analyzed and were not reviewed:\n"
                     f"{failed_list}\n\n"
                     "Please review these files manually, or re-run the workflow."
+                ),
+                event="COMMENT",
+            )
+
+        elif outcome == ReviewOutcome.TOTAL_FAILURE:
+            pull_request.create_review(
+                body=(
+                    "PRLens failed to complete the analysis for this pull request.\n\n"            
+                    "⛔ All files failed to be analyzed. This may indicate a rate limit, "            
+                    "API outage, or configuration issue.\n"            
+                    "Please re-run the workflow or check the action logs."
                 ),
                 event="COMMENT",
             )
