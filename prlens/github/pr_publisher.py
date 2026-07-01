@@ -172,6 +172,7 @@ class PRPublisher:
             if self.SUMMARY_MARKER in (comment.body or ""):
                 comment.delete()
                 break
+
         outcome = self._determine_review_outcome(result)
         if not (outcome == ReviewOutcome.COMMENT and result.total_files == 0):
             pull_request.create_issue_comment(body=summary)
