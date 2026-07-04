@@ -6,6 +6,8 @@ configured with sensible, overridable defaults so individual tests only need to
 tweak the pieces they care about.
 """
 
+#pytest tests/ -v
+
 import json
 
 import pytest
