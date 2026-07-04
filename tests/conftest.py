@@ -7,6 +7,9 @@ tweak the pieces they care about.
 """
 
 #pytest tests/ -v
+#Test the coverage
+#pip install pytest-cov
+#pytest tests/ --cov=prlens --cov-report=term-missing
 
 import json
 
