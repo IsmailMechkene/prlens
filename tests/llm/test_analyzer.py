@@ -1,6 +1,6 @@
 from prlens.llm.analyzer import Analyzer
 from prlens.models.review import ReviewResult
-from tests.conftest import mock_llm_client, mock_pull_request, mock_commit, settings, sample_file_change
+from tests.conftest import mock_llm_client, settings, sample_file_change
 
 
 def test_analyze_pr_returns_review_result(mock_llm_client, sample_pr, settings):
