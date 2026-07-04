@@ -13,6 +13,7 @@ excluded_files:
   - "*.min.js"
   - "dist/**"
   - "build/**"
+  - "*.env"
 
 reviewers_mapping:
   security: "IsmailMechkene"
