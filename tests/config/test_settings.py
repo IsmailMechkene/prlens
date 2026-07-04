@@ -17,6 +17,18 @@ def test_load_settings_returns_settings_instance():
     assert isinstance(settings, Settings)
 
 
+def test_load_settings_reads_yaml_file(tmp_path):
+    config = tmp_path / ".aireviewer.yml"
+    config.write_text("llm_model: gpt-4o-mini\nmax_workers: 3\napprove_threshold: 90\n")
+
+    settings = load_settings(config_path=str(config))
+
+    assert isinstance(settings, Settings)
+    assert settings.llm_model == "gpt-4o-mini"
+    assert settings.max_workers == 3
+    assert settings.approve_threshold == 90
+
+
 def test_filter_files_excludes_lock_files():
     settings = Settings(excluded_files=["*.lock"])
 
