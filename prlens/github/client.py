@@ -33,11 +33,15 @@ class GitHubClient:
         installation_id = getattr(self, '_installation_id', None)
 
         if not private_key:
-            key_path = PROJECT_ROOT / os.getenv("GITHUB_APP_PRIVATE_KEY_PATH", "prlens-reviewer.pem")
-            if not key_path:
-                raise ValueError("GITHUB_APP_PRIVATE_KEY_PATH not found in environment")
-            with open(key_path, "r") as f:
-                private_key = f.read()
+            key_path_str = os.getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+            if key_path_str:
+                key_path = PROJECT_ROOT / key_path_str
+                with open(key_path, "r") as f:
+                    private_key = f.read()
+            else:
+                private_key = os.getenv("GITHUB_APP_PRIVATE_KEY")
+                if not private_key:
+                    raise ValueError("Neither GITHUB_APP_PRIVATE_KEY_PATH nor GITHUB_APP_PRIVATE_KEY found")
 
         if not app_id:
             app_id = os.getenv("GITHUB_APP_ID")

@@ -1,5 +1,7 @@
 import json
 import os
+import tempfile
+import base64
 
 from prlens.config.settings import load_settings
 from prlens.core.agent import Agent
@@ -14,6 +16,14 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 
 
 if __name__ == "__main__":
+
+    app_private_key_b64 = os.getenv("GITHUB_APP_PRIVATE_KEY_B64")
+    if app_private_key_b64:
+        private_key = base64.b64decode(app_private_key_b64).decode("utf-8")
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.pem', delete=False) as f:
+            f.write(private_key)
+            os.environ["GITHUB_APP_PRIVATE_KEY_PATH"] = f.name
+
     event_path = os.getenv("GITHUB_EVENT_PATH")
     if not event_path:
         raise ValueError("GITHUB_EVENT_PATH not found")

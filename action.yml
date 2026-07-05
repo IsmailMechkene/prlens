@@ -3,19 +3,31 @@ description: 'AI-powered code review for GitHub Pull Requests'
 
 inputs:
   github_token:
-    description: 'GitHub token for API access'
-    required: true
+    description: 'GitHub PAT token (used if app_id not provided)'
+    required: false
   openai_api_key:
     description: 'Azure OpenAI API key'
     required: true
   openai_endpoint:
     description: 'Azure OpenAI endpoint'
     required: true
+  app_id:
+    description: 'GitHub App ID'
+    required: false
+  app_private_key:
+    description: 'GitHub App private key (PEM contents)'
+    required: false
+  app_installation_id:
+    description: 'GitHub App installation ID'
+    required: false
 
 runs:
   using: 'docker'
   image: 'Dockerfile'
   env:
-    GITHUB_TOKEN: ${{ inputs.github_token }}
-    AZURE_OPENAI_API_KEY: ${{ inputs.openai_api_key }}
-    AZURE_OPENAI_ENDPOINT: ${{ inputs.openai_endpoint }}
+      GITHUB_TOKEN: ${{ inputs.github_token }}
+      AZURE_OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+      AZURE_OPENAI_ENDPOINT: ${{ inputs.openai_endpoint }}
+      GITHUB_APP_ID: ${{ inputs.app_id }}
+      GITHUB_APP_PRIVATE_KEY_B64: ${{ inputs.app_private_key }}
+      GITHUB_APP_INSTALLATION_ID: ${{ inputs.app_installation_id }}
