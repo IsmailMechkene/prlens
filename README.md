@@ -1,0 +1,448 @@
+# PRLens
+
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
+[![Tests](https://img.shields.io/badge/tests-50%20passing-brightgreen.svg)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#testing)
+[![Eval precision](https://img.shields.io/badge/eval%20precision-86.7%25-brightgreen.svg)](#evaluation-results)
+
+**PRLens is an AI code reviewer for GitHub Pull Requests.** It reads the diff of every PR, uses GPT-4o (via Azure OpenAI) to find real security, quality, and performance issues, and posts inline comments, a quality score, labels, and a formal review verdict — all automatically. Drop in a workflow file or install it as a GitHub App; end users get reviews with zero manual effort.
+
+> Built as an internship project at **Smartovate**.
+
+---
+
+## Table of contents
+
+- [What a review looks like](#what-a-review-looks-like)
+- [Features](#features)
+- [Installation — GitHub Actions mode](#installation--github-actions-mode)
+- [Installation — Webhook mode](#installation--webhook-mode)
+- [Configuration reference](#configuration-reference)
+- [GitHub App setup](#github-app-setup)
+- [Architecture](#architecture)
+- [Evaluation results](#evaluation-results)
+- [Testing](#testing)
+- [Limitations and known issues](#limitations-and-known-issues)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## What a review looks like
+
+When PRLens reviews a PR, it posts a summary comment and inline comments on the exact diff lines.
+
+**Summary comment:**
+
+```markdown
+## PRLens Review Summary
+
+⚠️ Changes Requested
+
+**Score:** 61/100
+
+### Issues by Severity
+- critical: 1
+- warning: 2
+
+### Positive Observations
+- Input is validated before use in `create_user`
+
+### Recommendations
+- Move the hardcoded token into an environment variable
+```
+
+**Inline comment on a specific line:**
+
+```markdown
+🔴 Hardcoded API key committed to source. Anyone with repo access can read
+this secret, and it will remain in git history even if removed later.
+
+💡 **Suggestion:** Load the key from an environment variable, e.g.
+`API_KEY = os.environ["OPENAI_API_KEY"]`.
+```
+
+Severity is shown with an emoji prefix: 🔴 critical · 🟠 error · 🟡 warning · 🔵 info.
+
+PRLens also applies labels (e.g. `needs-changes`, `security-concern`), submits a formal review (**Approve** / **Request changes** / **Comment**), and optionally requests reviewers.
+
+---
+
+## Features
+
+**Detection**
+
+- **Security** — OWASP Top 10, SQL injection, hardcoded secrets, path traversal, command injection, XSS, unsafe deserialization, auth flaws.
+- **Quality** — excessive nesting, code duplication, god functions, bare `except`, poor abstraction, error-handling problems.
+- **Performance** — N+1 query patterns, expensive operations inside loops, blocking calls, inefficient algorithms.
+- **Style & documentation** — confusing naming, missing validation, and documentation gaps that cause genuine maintainability problems.
+
+**Scoring & verdict**
+
+- **Quality score (0–100)** using severity-weighted penalties: critical `-25`, error `-10`, warning `-4`, info `-1`.
+- **Formal review verdict** — Approve, Request changes, or Comment, driven by configurable score thresholds and the presence of critical issues.
+- **Graceful failure handling** — distinct `Incomplete` and `Total failure` outcomes when some or all files can't be analyzed, instead of a silent crash.
+
+**PR automation**
+
+- **Inline comments** on exact diff lines with emoji severity indicators and concrete fix suggestions.
+- **Structured Markdown summary** with score, severity breakdown, positives, and recommendations.
+- **Labels** applied automatically: `ai-approved`, `needs-changes`, `incomplete-review`, `failed_review`, `security-concern`, `large-pr`, `documentation-needed`.
+- **Reviewer assignment** based on a configurable issue-type → reviewer mapping (supports individuals and teams).
+
+**Engineering**
+
+- **Parallel analysis** — one LLM call per file, fanned out with a `ThreadPoolExecutor`.
+- **GitHub App auth** — JWT-signed installation tokens with automatic refresh before expiry (also supports a plain PAT).
+- **Two deployment modes** — GitHub Actions (no server) or a FastAPI webhook server (no per-repo setup).
+- **Validated** — 50 unit tests at 100% coverage, plus an eval harness reporting **86.7% precision** (spec requires ≥ 70%).
+
+---
+
+## Installation — GitHub Actions mode
+
+Runs entirely inside GitHub Actions. No server to host — add one workflow file to any repository.
+
+**Step 1 — Add repository secrets**
+
+In the target repo: **Settings → Secrets and variables → Actions → New repository secret**.
+
+| Secret | Value |
+| --- | --- |
+| `AZURE_OPENAI_API_KEY` | Your Azure OpenAI API key |
+| `AZURE_OPENAI_ENDPOINT` | Your Azure OpenAI endpoint, e.g. `https://your-resource.openai.azure.com/` |
+
+`GITHUB_TOKEN` is provided automatically by Actions — you don't create it.
+
+**Step 2 — Add the workflow**
+
+Create `.github/workflows/prlens.yml`:
+
+```yaml
+name: PRLens
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run AI Review
+        uses: IsmailMechkene/prlens@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          openai_endpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+```
+
+**Step 3 — (Optional) tune behavior**
+
+Add a `.aireviewer.yml` at the repo root to customize languages, thresholds, and reviewers — see the [Configuration reference](#configuration-reference). Without it, sensible defaults apply.
+
+**Step 4 — Open a PR**
+
+That's it. On the next PR (opened, updated, or reopened) PRLens runs and posts its review. Comments are attributed to `github-actions[bot]` in this mode.
+
+### Action inputs
+
+| Input | Required | Description |
+| --- | --- | --- |
+| `openai_api_key` | ✅ | Azure OpenAI API key. |
+| `openai_endpoint` | ✅ | Azure OpenAI endpoint / base URL. |
+| `github_token` | — | GitHub token (PAT or `GITHUB_TOKEN`). Used when App credentials are not provided. |
+| `app_id` | — | GitHub App ID (App auth). |
+| `app_private_key` | — | GitHub App private key, **base64-encoded** (see note below). |
+| `app_installation_id` | — | GitHub App installation ID. |
+
+> **Note on `app_private_key`:** multi-line PEM values don't survive being passed through a Docker action's environment reliably, so PRLens expects the key **base64-encoded** on a single line. Generate it with `base64 -w0 your-app.private-key.pem` (Linux) or `base64 -i your-app.private-key.pem` (macOS) and store the output as the secret.
+
+---
+
+## Installation — Webhook mode
+
+Run PRLens as a long-lived FastAPI server. Install the GitHub App once, and every repo it's added to gets reviews with **zero per-repo setup**.
+
+**Prerequisites**
+
+- Python 3.11
+- A registered GitHub App (see [GitHub App setup](#github-app-setup))
+- Azure OpenAI access (API key + endpoint)
+
+**Step 1 — Clone and install**
+
+```bash
+git clone https://github.com/IsmailMechkene/prlens.git
+cd prlens
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install "uvicorn[standard]"    # ASGI server used to run the app
+```
+
+**Step 2 — Configure the environment**
+
+Copy the example env file and fill it in:
+
+```bash
+cp .env.example .env
+```
+
+```dotenv
+# Azure OpenAI
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+
+# GitHub App auth
+GITHUB_APP_ID=123456
+GITHUB_APP_INSTALLATION_ID=987654
+GITHUB_APP_PRIVATE_KEY_PATH=./prlens-app.private-key.pem
+
+# Webhook signature verification (must match the secret set in the App settings)
+GITHUB_WEBHOOK_SECRET=your_webhook_secret
+```
+
+> Auth precedence: if `GITHUB_APP_ID` is set, PRLens authenticates as a GitHub App; otherwise it falls back to `GITHUB_TOKEN`. The private key can be supplied as a file path (`GITHUB_APP_PRIVATE_KEY_PATH`), raw PEM (`GITHUB_APP_PRIVATE_KEY`), or base64 (`GITHUB_APP_PRIVATE_KEY_B64`).
+
+**Step 3 — Run the server**
+
+```bash
+uvicorn prlens.webhook.app:app --host 0.0.0.0 --port 8000
+```
+
+Endpoints:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | Health check → `{"status": "ok", "service": "PRLens"}` |
+| `POST` | `/webhook` | Receives GitHub `pull_request` events (HMAC-SHA256 verified) |
+
+The webhook verifies the `X-Hub-Signature-256` header against `GITHUB_WEBHOOK_SECRET`, ignores non-`pull_request` events, and only acts on `opened`, `synchronize`, and `reopened` actions. Review work runs in a background task, so GitHub gets an immediate `202`-style acknowledgement while analysis proceeds.
+
+**Step 4 — Expose it to GitHub**
+
+Point your GitHub App's webhook URL at `https://<your-host>/webhook`. For local development, tunnel it:
+
+```bash
+# example using a tunneling tool of your choice
+ngrok http 8000
+# then set the App webhook URL to https://<tunnel-id>.ngrok.io/webhook
+```
+
+---
+
+## Configuration reference
+
+PRLens reads an optional `.aireviewer.yml` from the repository root. If the file is missing, all defaults below apply.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `llm_model` | `string` | `gpt-4o` | Azure OpenAI model / deployment name used for review. |
+| `min_severity` | `info` \| `warning` \| `error` \| `critical` | `info` | Comments below this severity are dropped before publishing. |
+| `target_languages` | `list[string]` | `[]` | Restrict which languages are reviewed. Supported: `python`, `javascript`, `typescript`, `java`. Empty means no language filter. |
+| `excluded_files` | `list[string]` | `[]` | Glob patterns for files to skip (e.g. `*.lock`, `dist/**`). |
+| `reviewers_mapping` | `map<type, string>` | `{}` | Maps an issue type (`security`, `performance`, `quality`, `style`, `documentation`) to a reviewer. Use a username, or `team:<slug>` for a team. |
+| `max_workers` | `int` | `5` | Number of files analyzed in parallel. |
+| `approve_threshold` | `int` | `80` | Score **strictly above** this (and no critical issues) → **Approve**. |
+| `changes_threshold` | `int` | `50` | Score **below** this (or any critical issue) → **Request changes**. |
+| `large_pr_threshold` | `int` | `20` | PRs changing more files than this get the `large-pr` label. |
+
+**Example `.aireviewer.yml`:**
+
+```yaml
+llm_model: gpt-4o
+min_severity: info
+
+target_languages:
+  - python
+  - javascript
+  - typescript
+  - java
+
+excluded_files:
+  - "*.lock"
+  - "*.min.js"
+  - "dist/**"
+  - "build/**"
+
+reviewers_mapping:
+  security: "IsmailMechkene"
+  performance: "Kurasaki-67"
+  quality: "team:senior-devs"
+
+max_workers: 5
+approve_threshold: 80
+changes_threshold: 50
+large_pr_threshold: 20
+```
+
+> Reviewer assignment only fires when a PR has critical issues, and requested reviewers must be collaborators on the repository — otherwise GitHub rejects the request and PRLens logs a warning without failing the run.
+
+---
+
+## GitHub App setup
+
+Required only for **Webhook mode** (and optional App auth in Actions mode).
+
+**1. Register the App** — GitHub → **Settings → Developer settings → GitHub Apps → New GitHub App**.
+
+- **Webhook URL:** `https://<your-host>/webhook`
+- **Webhook secret:** a strong random string (must match `GITHUB_WEBHOOK_SECRET`)
+
+**2. Repository permissions**
+
+| Permission | Access | Why |
+| --- | --- | --- |
+| Pull requests | Read & write | Post comments, reviews, labels, and reviewer requests |
+| Contents | Read | Read file diffs |
+| Metadata | Read | Mandatory baseline access |
+
+**3. Subscribe to events**
+
+- ☑️ **Pull request**
+
+**4. Collect credentials**
+
+- **App ID** → `GITHUB_APP_ID`
+- **Generate a private key** (downloads a `.pem`) → `GITHUB_APP_PRIVATE_KEY_PATH`
+- **Install the App** on your account/org, then read the **Installation ID** from the install URL → `GITHUB_APP_INSTALLATION_ID`
+
+PRLens signs a short-lived JWT with the private key, exchanges it for an installation access token, and automatically refreshes the token before it expires.
+
+---
+
+## Architecture
+
+PRLens shares one core pipeline (`Agent`) behind two entry points. In Actions mode, `main.py` runs once per PR inside a Docker container; in Webhook mode, the FastAPI server invokes the same pipeline per event.
+
+```mermaid
+flowchart TD
+    A[GitHub Pull Request event] --> B{Entry point}
+    B -->|Actions mode| C[main.py in Docker]
+    B -->|Webhook mode| D[FastAPI /webhook<br/>HMAC verified]
+
+    C --> E[Agent.run]
+    D --> E
+
+    E --> F[PRFetcher<br/>fetch PR + diffs via PyGithub]
+    F --> G[Analyzer.analyze_pr<br/>filter files by language/excludes]
+    G --> H[ThreadPoolExecutor<br/>one LLM call per file]
+    H --> I[LLMClient → Azure OpenAI GPT-4o<br/>JSON-structured findings]
+    I --> J[Aggregate → ReviewResult<br/>severity filter + score + verdict]
+
+    J --> K[PRPublisher]
+    K --> L[Apply labels]
+    K --> M[Post summary comment]
+    K --> N[Post inline comments]
+    K --> O[Submit review verdict]
+    K --> P[Assign reviewers]
+
+    L & M & N & O & P --> Q[Updated Pull Request]
+```
+
+**Module layout**
+
+```
+prlens/
+├── config/settings.py     # .aireviewer.yml loading, Settings model, file filtering
+├── core/agent.py          # Orchestrates the review pipeline
+├── github/
+│   ├── client.py          # Auth (GitHub App JWT / PAT), token refresh
+│   ├── pr_fetcher.py      # Fetch PR + map to internal models
+│   └── pr_publisher.py    # Labels, summary, inline comments, verdict, reviewers
+├── llm/
+│   ├── client.py          # Azure OpenAI (OpenAI SDK) wrapper
+│   ├── analyzer.py        # Parallel per-file analysis, scoring
+│   └── prompts.py         # System + user prompts, strict JSON contract
+├── models/                # Pydantic models: PR, FileChange, ReviewComment, ...
+└── webhook/app.py         # FastAPI server (webhook mode)
+
+main.py                    # Actions-mode entry point
+eval/                      # Offline evaluation harness
+```
+
+---
+
+## Evaluation results
+
+PRLens ships with an offline eval harness (`eval/`) of hand-crafted diffs with known-good expectations. A case passes if the reviewer returns a finding of the expected type at or above the expected severity — and for "clean" cases, if it returns **no** comments.
+
+Run it against your Azure OpenAI deployment:
+
+```bash
+python -m eval.run_eval
+```
+
+**Latest run — 13 / 15 cases, 86.7% precision** (spec requires ≥ 70%):
+
+| Category | Cases | Passed | What it checks |
+| --- | --- | --- | --- |
+| Security | 5 | 5 | Hardcoded secrets, SQL injection, path traversal, command injection |
+| Quality | 4 | 4 | Deep nesting, duplication, bare `except`, god functions |
+| Clean | 3 | 2 | Genuinely clean code produces **no** false-positive comments |
+| Mixed | 3 | 2 | Multiple issue types in one diff (security + quality + performance) |
+| **Total** | **15** | **13** | **86.7% precision** |
+
+The two remaining misses are false positives on borderline "clean" cases — see [Limitations](#limitations-and-known-issues).
+
+---
+
+## Testing
+
+The unit suite runs fully offline (all GitHub and LLM calls are mocked).
+
+```bash
+pip install -r requirements-dev.txt
+
+# run the suite
+pytest
+
+# with coverage
+pytest --cov=prlens --cov-report=term-missing
+```
+
+**50 tests, 100% line coverage** across config, GitHub client, PR fetcher/publisher, analyzer, LLM client, and the agent orchestrator.
+
+---
+
+## Limitations and known issues
+
+- **Single-file context.** The LLM reviews one file at a time and has no visibility into the rest of the PR, so cross-file issues (e.g. a caller/callee contract broken across two files) can be missed.
+- **Diff-only.** Only lines present in the diff are reviewed; pre-existing issues in unchanged code are out of scope by design.
+- **LLM non-determinism.** Findings and severities can vary run to run. Scores and verdicts are computed deterministically from whatever the model returns, but the inputs themselves are probabilistic.
+- **Occasional false positives on clean code.** Reflected in the eval (2/3 clean cases pass); very defensive or unusual-but-correct code can still draw a comment.
+- **Language coverage.** Only Python, JavaScript, TypeScript, and Java are recognized for language filtering.
+- **Azure OpenAI required.** The LLM client is wired for an Azure OpenAI endpoint; other providers would require adapting `prlens/llm/client.py`.
+- **Reviewer assignment needs collaborators.** Mapped reviewers must be repository collaborators or GitHub rejects the request (logged as a warning, non-fatal).
+
+---
+
+## Contributing
+
+Contributions are welcome.
+
+1. Fork the repo and create a feature branch: `git checkout -b feature/my-change`.
+2. Install dev dependencies: `pip install -r requirements-dev.txt`.
+3. Make your change **with tests** — the suite is at 100% coverage and should stay there.
+4. Run `pytest` and, if you touched the review logic, `python -m eval.run_eval`.
+5. Open a Pull Request with a clear description. (PRLens will review it. 🙂)
+
+Please keep changes focused, match the existing code style, and update the README/config reference when you add or rename configuration.
+
+---
+
+## License
+
+Released under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+
+---
+
+<sub>Built with FastAPI, PyGithub, Pydantic v2, and the OpenAI SDK (Azure OpenAI · GPT-4o). An internship project at Smartovate.</sub>
