@@ -2,7 +2,7 @@
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
-[![Tests](https://img.shields.io/badge/tests-50%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-69%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#testing)
 [![Eval precision](https://img.shields.io/badge/eval%20precision-86.7%25-brightgreen.svg)](#evaluation-results)
 
@@ -96,7 +96,7 @@ PRLens also applies labels (e.g. `needs-changes`, `security-concern`), submits a
 - **Parallel analysis** — one LLM call per file, fanned out with a `ThreadPoolExecutor`.
 - **GitHub App auth** — JWT-signed installation tokens with automatic refresh before expiry (also supports a plain PAT).
 - **Two deployment modes** — GitHub Actions (no server) or a FastAPI webhook server (no per-repo setup).
-- **Validated** — 50 unit tests at 100% coverage, plus an eval harness reporting **86.7% precision** (spec requires ≥ 70%).
+- **Validated** — 69 unit tests at 100% coverage, plus an eval harness reporting **86.7% precision** (spec requires ≥ 70%).
 
 ---
 
@@ -409,7 +409,7 @@ pytest
 pytest --cov=prlens --cov-report=term-missing
 ```
 
-**50 tests, 100% line coverage** across config, GitHub client, PR fetcher/publisher, analyzer, LLM client, and the agent orchestrator.
+**69 tests, 100% line coverage** across config, GitHub client (PAT **and** GitHub App auth), PR fetcher/publisher, analyzer, LLM client, the agent orchestrator, and the FastAPI webhook server.
 
 ---
 
