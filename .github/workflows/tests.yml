@@ -23,3 +23,8 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ --cov=prlens --cov-report=term-missing
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check prlens/

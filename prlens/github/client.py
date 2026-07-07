@@ -1,12 +1,11 @@
-from github import Github, Repository, GithubException
-from dotenv import load_dotenv
+import os
+import time
 from pathlib import Path
 
-import os
 import jwt
-import time
 import requests
-
+from dotenv import load_dotenv
+from github import Github, GithubException, Repository
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 

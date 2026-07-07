@@ -1,11 +1,12 @@
+import fnmatch  #Python module used for matching filenames
 from enum import Enum
-from pydantic import BaseModel, Field
-from prlens.models.review import Severity, ReviewType
-from prlens.models.pr import FileChange
-import yaml
-import fnmatch #Python module used for matching filenames
 from pathlib import Path
 
+import yaml
+from pydantic import BaseModel, Field
+
+from prlens.models.pr import FileChange
+from prlens.models.review import ReviewType, Severity
 
 
 class SupportedLanguages(str, Enum):

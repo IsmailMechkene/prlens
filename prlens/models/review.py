@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReviewType(str, Enum):

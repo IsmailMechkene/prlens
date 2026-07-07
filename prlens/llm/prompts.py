@@ -1,5 +1,6 @@
-from prlens.models.pr import FileChange
 from pathlib import Path
+
+from prlens.models.pr import FileChange
 
 SYSTEM_PROMPT = """
 You are PRLens, an expert AI Pull Request reviewer.

@@ -1,10 +1,7 @@
 from eval.runner import EvalCase
 from prlens.models.review import ReviewType, Severity
 
-# Clean cases: genuinely well-written code with no real issues.
-# should_have_comments=False — the reviewer should return zero comments.
-# expected_types / expected_min_severity are unused for these but are
-# required positional fields, so we pass harmless placeholders.
+
 CLEAN_CASES = [
     EvalCase(
         name="clean_error_handling",

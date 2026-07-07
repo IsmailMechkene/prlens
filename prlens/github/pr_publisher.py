@@ -1,9 +1,9 @@
+import logging
 from collections import Counter
 from enum import Enum
-import logging
 
-from github.PullRequest import PullRequest
 from github import GithubException
+from github.PullRequest import PullRequest
 
 from prlens.config.settings import Settings
 from prlens.github.client import GitHubClient

@@ -1,5 +1,6 @@
-from prlens.github.client import GitHubClient
 from github.PullRequest import PullRequest
+
+from prlens.github.client import GitHubClient
 from prlens.models.pr import PR, FileChange, FileChangeStatus, PRStatus
 
 
