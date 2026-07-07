@@ -8,8 +8,6 @@ import time
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 
-load_dotenv()
-
 from prlens.config.settings import load_settings
 from prlens.core.agent import Agent
 from prlens.github.client import GitHubClient
@@ -18,6 +16,7 @@ from prlens.github.pr_publisher import PRPublisher
 from prlens.llm.analyzer import Analyzer
 from prlens.llm.client import LLMClient
 
+load_dotenv()
 app = FastAPI()
 
 _processing_lock = threading.Lock()
