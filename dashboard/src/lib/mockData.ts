@@ -43,13 +43,13 @@ export const mockRepos: RepoDetail[] = [
 ]
 
 export const mockReviews: Review[] = [
-  { repo: 'api-gateway', number: 482, title: 'Add JWT auth middleware to gateway', score: 42, status: 'changes', reviewedAt: '2h ago' },
+  { repo: 'api-gateway', number: 482, title: 'Add JWT auth middleware to gateway', score: 42, status: 'changes_requested', reviewedAt: '2h ago' },
   { repo: 'web-app', number: 1207, title: 'Refactor checkout flow to server actions', score: 88, status: 'approved', reviewedAt: '4h ago' },
-  { repo: 'billing-service', number: 96, title: 'Retry logic for Stripe webhooks', score: 74, status: 'changes', reviewedAt: '6h ago' },
+  { repo: 'billing-service', number: 96, title: 'Retry logic for Stripe webhooks', score: 74, status: 'changes_requested', reviewedAt: '6h ago' },
   { repo: 'design-system', number: 340, title: 'Tokenize spacing scale', score: 91, status: 'approved', reviewedAt: 'yesterday' },
   { repo: 'api-gateway', number: 479, title: 'Rate limit per API key', score: 83, status: 'approved', reviewedAt: 'yesterday' },
   { repo: 'web-app', number: 1198, title: 'Dark mode persistence bug', score: 38, status: 'incomplete', reviewedAt: '2d ago' },
-  { repo: 'billing-service', number: 91, title: 'Migrate invoices table', score: 67, status: 'changes', reviewedAt: '3d ago' },
+  { repo: 'billing-service', number: 91, title: 'Migrate invoices table', score: 67, status: 'changes_requested', reviewedAt: '3d ago' },
 ]
 
 export const mockDashboardStats: DashboardStats = {

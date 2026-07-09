@@ -44,7 +44,7 @@ export function Sidebar() {
         {connected.map((r) => (
           <NavLink
             key={r.name}
-            to={`/repos/${r.name}`}
+            to={`/repos/${encodeURIComponent(r.name)}`}
             className={({ isActive }) =>
               `${styles.repo} ${isActive ? styles.repoActive : ''}`
             }

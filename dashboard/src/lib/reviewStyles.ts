@@ -41,8 +41,12 @@ export function statusMeta(status: ReviewStatus): StatusMeta {
   switch (status) {
     case 'approved':
       return { label: 'Approved', color: 'var(--success)', icon: 'circle-check-big' }
-    case 'changes':
+    case 'changes_requested':
       return { label: 'Changes requested', color: 'var(--attention)', icon: 'circle-alert' }
+    case 'comment':
+      return { label: 'Reviewed', color: 'var(--pa)', icon: 'scan-eye' }
+    case 'total_failure':
+      return { label: 'Review failed', color: 'var(--danger)', icon: 'x' }
     default:
       return { label: 'Incomplete', color: 'var(--fg-muted)', icon: 'clock' }
   }

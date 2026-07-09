@@ -33,6 +33,27 @@ const FEATURES: Feature[] = [
     title: 'Auto labels',
     desc: 'Applies labels and routes reviewers automatically from the diff — security, backend, needs-tests, and more.',
   },
+  {
+    icon: 'zap',
+    color: 'var(--attention)',
+    tint: 'rgba(210,153,34,0.12)',
+    title: 'Reviews in seconds',
+    desc: 'Feedback arrives while the diff is still fresh in your head — a median of 4.2 seconds after the PR opens.',
+  },
+  {
+    icon: 'git-pull-request',
+    color: 'var(--done)',
+    tint: 'rgba(210,168,255,0.12)',
+    title: 'Native to your workflow',
+    desc: 'Reviews appear as ordinary PR comments and checks. No new tab, no new tool for your team to learn.',
+  },
+  {
+    icon: 'sliders-horizontal',
+    color: 'var(--pa-lite)',
+    tint: 'var(--pa-t12)',
+    title: 'Tuned per repository',
+    desc: 'Set severity thresholds, focus areas and label rules per repo, so the review matches how each team works.',
+  },
 ]
 
 export function Features() {
@@ -40,7 +61,7 @@ export function Features() {
     <section className={styles.section}>
       <div className={styles.head}>
         <div className={styles.eyebrow}>Every PR, reviewed</div>
-        <h2 className={styles.heading}>Three checks on autopilot</h2>
+        <h2 className={styles.heading}>Everything a great reviewer does</h2>
       </div>
       <div className={styles.grid}>
         {FEATURES.map((f) => (

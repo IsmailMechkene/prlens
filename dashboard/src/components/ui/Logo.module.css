@@ -6,10 +6,8 @@
 
 .badge {
   border-radius: var(--rad-sm);
-  background: linear-gradient(140deg, var(--pa), var(--pa-deep));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: cover;
+  display: inline-block;
   flex-shrink: 0;
 }
 

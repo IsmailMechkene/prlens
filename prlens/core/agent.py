@@ -3,6 +3,8 @@ from prlens.github.pr_fetcher import PRFetcher
 from prlens.github.pr_publisher import PRPublisher
 from prlens.llm.analyzer import Analyzer
 from prlens.llm.client import LLMClient
+from prlens.models.pr import PR
+from prlens.models.review import ReviewResult
 
 
 class Agent:
@@ -13,7 +15,7 @@ class Agent:
         self.analyzer = analyzer
         self.settings = settings
 
-    def run(self, repo_name: str, pr_number: int, actor: str) -> None:
+    def run(self, repo_name: str, pr_number: int, actor: str) -> tuple[PR, ReviewResult]:
         github_pr = self.pr_fetcher.fetch_raw(repo_name, pr_number)
         pr = self.pr_fetcher.map_to_pr(github_pr, repo_name)
 
@@ -24,3 +26,5 @@ class Agent:
         self.pr_publisher.post_inline_comments(github_pr, result.comments, actor)
         self.pr_publisher.submit_review(github_pr, result, actor)
         self.pr_publisher.assign_reviewers(github_pr, result, self.settings)
+
+        return pr, result

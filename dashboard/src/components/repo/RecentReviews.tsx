@@ -13,7 +13,7 @@ export function RecentReviews({ reviews }: { reviews: Review[] }) {
           type="button"
           key={`${rv.repo}-${rv.number}`}
           className={styles.row}
-          onClick={() => navigate(`/repos/${rv.repo}`)}
+          onClick={() => navigate(`/repos/${encodeURIComponent(rv.repo)}`)}
         >
           <ScoreBadge score={rv.score} />
           <div className={styles.meta}>

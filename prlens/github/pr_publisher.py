@@ -63,6 +63,14 @@ class PRPublisher:
 
         return ReviewOutcome.COMMENT
 
+    def determine_outcome(self, result: ReviewResult) -> ReviewOutcome:
+        """The outcome this publisher would submit for ``result``.
+
+        Exposed so callers that persist a review can record the same verdict
+        that was posted to GitHub, rather than recomputing the thresholds.
+        """
+        return self._determine_review_outcome(result)
+
     def _determine_review_status(self, result: ReviewResult) -> str:
         outcome = self._determine_review_outcome(result)
 

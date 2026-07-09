@@ -1,4 +1,3 @@
-import { Icon } from './Icon'
 import styles from './Logo.module.css'
 
 interface LogoProps {
@@ -13,16 +12,16 @@ interface LogoProps {
 export function Logo({ size = 30, withWordmark = true, ring = true }: LogoProps) {
   return (
     <span className={styles.logo}>
-      <span
+      <img
+        src="/prlens_logo.png"
+        alt="PRLens"
         className={styles.badge}
         style={{
           width: size,
           height: size,
           boxShadow: ring ? '0 0 0 1px var(--pa-t40)' : 'none',
         }}
-      >
-        <Icon name="scan-eye" size={size * 0.6} color="#fff" />
-      </span>
+      />
       {withWordmark && <span className={styles.word}>PRLens</span>}
     </span>
   )

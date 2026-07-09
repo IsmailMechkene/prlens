@@ -18,7 +18,17 @@ export interface User {
 
 export type Visibility = 'Public' | 'Private'
 
-export type ReviewStatus = 'approved' | 'changes' | 'incomplete'
+/**
+ * The verdict PRLens submitted on the pull request. These are the values of the
+ * agent's `ReviewOutcome` enum (prlens/github/pr_publisher.py), persisted
+ * verbatim on `Review.status`.
+ */
+export type ReviewStatus =
+  | 'approved'
+  | 'changes_requested'
+  | 'comment'
+  | 'incomplete'
+  | 'total_failure'
 
 export type Severity = 'info' | 'warning' | 'error' | 'critical'
 
@@ -28,6 +38,8 @@ export type IssueCategory = 'Security' | 'Quality' | 'Performance' | 'Style'
 export interface Repo {
   /** Short name without owner, e.g. "api-gateway". */
   name: string
+  /** Owning user or org, e.g. "acme". */
+  owner: string
   visibility: Visibility
   /** Human-readable "last updated", e.g. "2h ago". */
   updated: string
@@ -36,6 +48,12 @@ export interface Repo {
   /** Whether reviewing is currently enabled. */
   active: boolean
 }
+
+/**
+ * A repository as GitHub reports it, before PRLens is installed on it.
+ * `active` only exists once there is an Installation row, so it is absent here.
+ */
+export type GitHubRepo = Omit<Repo, 'active'>
 
 /** A single PR review result. */
 export interface Review {
@@ -88,7 +106,6 @@ export interface RepoSettings {
 
 /** Full repo detail payload for the repo page. */
 export interface RepoDetail extends Repo {
-  owner: string
   description: string
   /** Daily quality scores, oldest → newest (for the trend chart). */
   scoreTrend: number[]

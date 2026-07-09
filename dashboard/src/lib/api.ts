@@ -1,9 +1,10 @@
 /**
  * Typed PRLens API client.
  *
- * Set `VITE_API_BASE_URL` (e.g. "https://api.example.com" or "/api") to point
- * the dashboard at your backend. When it is unset the client serves the local
- * fixtures in mockData.ts so the UI is fully usable during development.
+ * Set `VITE_API_BASE_URL` to the backend's *origin* (e.g. "http://localhost:8000").
+ * REST calls are served under `/api` on that origin and the OAuth entrypoint under
+ * `/auth`, so both are derived from the one variable. When it is unset the client
+ * serves the local fixtures in mockData.ts so the UI is fully usable offline.
  *
  * Every method maps 1:1 to an endpoint documented in BACKEND_CONTRACT.md.
  */
@@ -14,10 +15,24 @@ import {
   mockReviews,
   mockUser,
 } from './mockData'
-import type { DashboardStats, Repo, RepoDetail, RepoSettings, Review, User } from './types'
+import type {
+  DashboardStats,
+  GitHubRepo,
+  Repo,
+  RepoDetail,
+  RepoSettings,
+  Review,
+  User,
+  Visibility,
+} from './types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
-const USE_MOCKS = BASE_URL === ''
+export const USE_MOCKS = BASE_URL === ''
+
+const API_ROOT = `${BASE_URL}/api`
+
+/** Where to send the browser to start the GitHub OAuth dance. */
+export const githubLoginUrl = `${BASE_URL}/auth/github`
 
 /** Simulate network latency so loading states are exercised in mock mode. */
 function mock<T>(value: T): Promise<T> {
@@ -27,7 +42,7 @@ function mock<T>(value: T): Promise<T> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${API_ROOT}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     credentials: 'include',
     ...init,
@@ -51,10 +66,21 @@ export class ApiError extends Error {
 function stripDetail(r: RepoDetail): Repo {
   return {
     name: r.name,
+    owner: r.owner,
     visibility: r.visibility,
     updated: r.updated,
     connected: r.connected,
     active: r.active,
+  }
+}
+
+function toGitHubRepo(r: RepoDetail): GitHubRepo {
+  return {
+    name: r.name,
+    owner: r.owner,
+    visibility: r.visibility,
+    updated: r.updated,
+    connected: r.connected,
   }
 }
 
@@ -77,6 +103,16 @@ export const api = {
   getRepos(): Promise<Repo[]> {
     if (USE_MOCKS) return mock(mockRepos.map(stripDetail))
     return request<Repo[]>('/repos')
+  },
+
+  /**
+   * Every repo the signed-in user can see on GitHub, each flagged with whether
+   * PRLens is already installed. Backed by the user's OAuth token, so it lists
+   * repos that have no Installation row yet — unlike getRepos().
+   */
+  getGitHubRepos(): Promise<GitHubRepo[]> {
+    if (USE_MOCKS) return mock(mockRepos.map(toGitHubRepo))
+    return request<GitHubRepo[]>('/github/repos')
   },
 
   getRepo(name: string): Promise<RepoDetail> {
@@ -123,15 +159,18 @@ export const api = {
     })
   },
 
-  enableRepo(name: string): Promise<Repo> {
+  enableRepo(name: string, owner: string, visibility: Visibility): Promise<Repo> {
     if (USE_MOCKS) {
       const repo = mockRepos.find((r) => r.name === name)
       if (repo) {
         repo.connected = true
         repo.active = true
       }
-      return mock(repo ? stripDetail(repo) : { name, visibility: 'Private', updated: 'just now', connected: true, active: true })
+      return mock(repo ? stripDetail(repo) : { name, owner, visibility, updated: 'just now', connected: true, active: true })
     }
-    return request<Repo>(`/repos/${encodeURIComponent(name)}/enable`, { method: 'POST' })
+    return request<Repo>(`/repos/${encodeURIComponent(name)}/enable`, {
+      method: 'POST',
+      body: JSON.stringify({ owner, visibility }),
+    })
   },
 }

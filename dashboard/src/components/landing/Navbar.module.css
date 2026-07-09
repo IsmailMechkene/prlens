@@ -1,7 +1,18 @@
+/* Sticky glass bar so the nav stays legible over the hero glow. */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg-inset) 78%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-muted) 70%, transparent);
+}
+
 .nav {
   max-width: 1140px;
   margin: 0 auto;
-  padding: 22px 32px;
+  padding: 16px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -17,6 +28,7 @@
 
 .link {
   cursor: pointer;
+  transition: color 0.15s ease;
 }
 .link:hover {
   color: var(--fg-default);
@@ -35,7 +47,17 @@
   padding: 7px 14px;
   border-radius: var(--rad-sm);
   cursor: pointer;
+  transition: border-color 0.15s ease;
 }
 .signIn:hover {
   border-color: #8b949e;
+}
+
+@media (max-width: 640px) {
+  .links {
+    gap: 18px;
+  }
+  .link {
+    display: none;
+  }
 }

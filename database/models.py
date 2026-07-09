@@ -1,8 +1,17 @@
-from datetime import datetime
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, JSON, Text
-from sqlalchemy import UniqueConstraint
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
 
 class Base(DeclarativeBase):
     pass
@@ -23,6 +32,8 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    github_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+
 
 class Installation(Base):
     __tablename__ = "installations"
@@ -37,6 +48,7 @@ class Installation(Base):
     repo_name: Mapped[str] = mapped_column(String(150))
     owner: Mapped[str] = mapped_column(String(100))
     visibility: Mapped[str] = mapped_column(String(20))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     connected: Mapped[bool] = mapped_column(Boolean, default=False)

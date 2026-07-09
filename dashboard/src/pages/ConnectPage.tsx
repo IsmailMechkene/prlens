@@ -9,7 +9,9 @@ import styles from './ConnectPage.module.css'
 
 export function ConnectPage() {
   const [search, setSearch] = useState('')
-  const repos = useAsync(() => api.getRepos(), [])
+  // Lists everything on GitHub, not just repos PRLens already knows about,
+  // so a brand-new repo can be enabled from here.
+  const repos = useAsync(() => api.getGitHubRepos(), [])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()

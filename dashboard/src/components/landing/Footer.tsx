@@ -1,11 +1,10 @@
-import { Icon } from '../ui/Icon'
 import styles from './Footer.module.css'
 
 export function Footer() {
   return (
     <footer className={styles.footer}>
       <div className={styles.brand}>
-        <Icon name="scan-eye" size={16} color="var(--pa)" />
+        <img src="/prlens_logo.png" alt="" className={styles.mark} />
         <span className={styles.name}>PRLens</span>
         <span className={styles.sep}>·</span>
         <span>© 2026</span>

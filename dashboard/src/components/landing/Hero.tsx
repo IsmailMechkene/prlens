@@ -28,9 +28,11 @@ export function Hero() {
       </p>
 
       <div className={styles.actions}>
-        <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')}>
-          <GitHubIcon size={18} /> Login with GitHub
-        </Button>
+        <span className={styles.primaryGlow}>
+          <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')}>
+            <GitHubIcon size={18} /> Login with GitHub
+          </Button>
+        </span>
         <Button variant="secondary" size="lg" onClick={() => navigate('/dashboard')}>
           View demo <Icon name="arrow-right" size={16} />
         </Button>

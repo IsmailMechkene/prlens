@@ -6,16 +6,18 @@ import styles from './Navbar.module.css'
 export function Navbar() {
   const navigate = useNavigate()
   return (
-    <nav className={styles.nav}>
-      <Logo size={30} />
-      <div className={styles.links}>
-        <span className={styles.link}>Features</span>
-        <span className={styles.link}>Docs</span>
-        <span className={styles.link}>Pricing</span>
-        <button type="button" className={styles.signIn} onClick={() => navigate('/dashboard')}>
-          <GitHubIcon size={15} /> Sign in
-        </button>
-      </div>
-    </nav>
+    <div className={styles.bar}>
+      <nav className={styles.nav}>
+        <Logo size={30} />
+        <div className={styles.links}>
+          <span className={styles.link}>Features</span>
+          <span className={styles.link}>Docs</span>
+          <span className={styles.link}>Pricing</span>
+          <button type="button" className={styles.signIn} onClick={() => navigate('/dashboard')}>
+            <GitHubIcon size={15} /> Sign in
+          </button>
+        </div>
+      </nav>
+    </div>
   )
 }

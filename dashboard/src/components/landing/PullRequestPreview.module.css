@@ -1,17 +1,119 @@
 .wrap {
   max-width: 860px;
-  margin: 40px auto 0;
+  margin: 44px auto 0;
   padding: 0 32px;
 }
 
+.stage {
+  position: relative;
+}
+
+/* Accent halo bleeding out from behind the window. */
+.halo {
+  position: absolute;
+  inset: -60px -80px;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 60% 55% at 50% 40%,
+    color-mix(in srgb, var(--pa) 14%, transparent),
+    transparent 70%
+  );
+  filter: blur(6px);
+  z-index: 0;
+}
+
 .window {
-  border: 1px solid var(--border-default);
+  position: relative;
+  z-index: 1;
+  border: 1px solid color-mix(in srgb, var(--pa) 18%, var(--border-default));
   border-radius: var(--rad);
   background: var(--bg-inset);
   overflow: hidden;
   box-shadow:
     0 24px 60px -20px rgba(1, 4, 9, 0.9),
+    0 0 40px -12px var(--pa-t40),
     0 0 0 1px rgba(48, 54, 61, 0.5);
+}
+
+/* Floating stat chips anchored to the window corners. */
+.chip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-sm);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 12px 32px -12px rgba(1, 4, 9, 0.9);
+}
+.chipScore {
+  top: -18px;
+  right: -34px;
+}
+.chipSpeed {
+  bottom: 26px;
+  left: -38px;
+}
+.chipIcon {
+  display: flex;
+}
+.chipLabel {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--fg-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.chipValue {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage {
+    animation: reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+  }
+  .chipScore {
+    animation: floatY 7s ease-in-out infinite;
+  }
+  .chipSpeed {
+    animation: floatY 8s ease-in-out 1.2s infinite;
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes floatY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@media (max-width: 900px) {
+  .chip {
+    display: none;
+  }
 }
 
 .chrome {
@@ -115,6 +217,9 @@
 .diffRemoved {
   background: rgba(248, 81, 73, 0.08);
 }
+.diffAdded {
+  background: rgba(63, 185, 80, 0.08);
+}
 .gutter {
   width: 42px;
   text-align: right;
@@ -125,6 +230,9 @@
 }
 .gutterRemoved {
   color: var(--danger);
+}
+.gutterAdded {
+  color: var(--success);
 }
 .code {
   padding: 3px 12px;
@@ -141,10 +249,7 @@
   width: 34px;
   height: 34px;
   border-radius: var(--rad-sm);
-  background: linear-gradient(140deg, var(--pa), var(--pa-deep));
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: cover;
   box-shadow: 0 0 0 1px var(--pa-t40);
 }
 .comment {

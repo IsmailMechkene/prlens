@@ -1,6 +1,53 @@
 .page {
   background: var(--bg-inset);
   min-height: 100vh;
+  position: relative;
+  overflow-x: clip;
+}
+
+/* Ambient accent glow — mixes from --pa so it retints with the live theme. */
+.aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 920px 500px at 50% -140px,
+      color-mix(in srgb, var(--pa) 17%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 620px 420px at 10% 24%,
+      color-mix(in srgb, var(--pa) 6%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 620px 420px at 90% 32%,
+      color-mix(in srgb, var(--pa) 5%, transparent),
+      transparent 70%
+    );
+}
+
+/* Faint blueprint grid under the hero, dissolving downward. */
+.grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 820px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--border-muted) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-muted) 1px, transparent 1px);
+  background-size: 44px 44px;
+  opacity: 0.35;
+  -webkit-mask-image: radial-gradient(ellipse 78% 100% at 50% 0%, #000 18%, transparent 76%);
+  mask-image: radial-gradient(ellipse 78% 100% at 50% 0%, #000 18%, transparent 76%);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
 }
 
 .spacer {
