@@ -16,8 +16,19 @@ from prlens.github.pr_publisher import PRPublisher
 from prlens.llm.analyzer import Analyzer
 from prlens.llm.client import LLMClient
 
+from contextlib import asynccontextmanager
+from database.connection import init_db
+
 load_dotenv()
-app = FastAPI()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
 
 _processing_lock = threading.Lock()
 _processing_prs: set = set()
@@ -99,3 +110,6 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(run_agent, repo_name, pr_number, actor)
     return {"status": "accepted"}
+
+
+
