@@ -24,8 +24,10 @@ from fastapi.responses import RedirectResponse
 from auth.github_oauth import get_github_auth_url
 from auth.github_oauth import exchange_code_for_token, get_github_user
 from database.connection import get_db
-from database.models import User
+from database.models import User, Installation
 from sqlalchemy.orm import Session
+
+from datetime import datetime, timezone
 
 
 load_dotenv()
@@ -100,6 +102,21 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+def time_ago(dt: datetime) -> str:
+    now = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    diff = now - dt
+    seconds = int(diff.total_seconds())
+    if seconds < 60:
+        return "just now"
+    elif seconds < 3600:
+        return f"{seconds // 60}m ago"
+    elif seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    else:
+        return f"{seconds // 86400}d ago"
+
 
 @app.get("/")
 def health_check():
@@ -162,3 +179,31 @@ async def github_callback(code: str, request: Request, db: Session = Depends(get
 
     request.session["user_id"] = user.id
     return RedirectResponse("/dashboard")
+
+
+@app.get("/api/user")
+def get_user(current_user: User = Depends(get_current_user)):
+    return {
+        "name": current_user.name,
+        "handle": current_user.handle,
+        "initials": current_user.initials,
+        "avatarUrl": current_user.avatar_url,
+    }
+
+
+@app.get("/api/repos")
+def get_repos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    installations = db.query(Installation).filter(
+        Installation.user_id == current_user.id
+    ).all()
+
+    return [
+        {
+            "name": inst.repo_name,
+            "visibility": inst.visibility,
+            "updated": time_ago(inst.installed_at),
+            "connected": inst.connected,
+            "active": inst.active
+        }
+        for inst in installations
+    ]

@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, JSON, Text
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-
+from datetime import datetime, timezone
 
 class Base(DeclarativeBase):
     pass
@@ -49,10 +49,9 @@ class Installation(Base):
     reviewer_map: Mapped[dict] = mapped_column(JSON)
 
     installed_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
     )
-
     user: Mapped["User"] = relationship(back_populates="installations")
 
     reviews: Mapped[list["Review"]] = relationship(
