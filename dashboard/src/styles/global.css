@@ -1,0 +1,106 @@
+/* ============================================================
+   PRLens global styles + design tokens
+   Palette follows the GitHub "dark" system used by the design.
+   Accent / radius / density tokens (--pa*, --rad*, --dsc) are set
+   at runtime by ThemeProvider so they can be themed live.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Surfaces */
+  --bg-canvas: #010409;
+  --bg-inset: #0d1117;
+  --bg-surface: #161b22;
+  --bg-elevated: #21262d;
+  --bg-hover: #1c2330;
+
+  /* Borders */
+  --border-default: #30363d;
+  --border-muted: #21262d;
+  --border-strong: #484f58;
+
+  /* Foreground */
+  --fg-default: #e6edf3;
+  --fg-secondary: #c9d1d9;
+  --fg-muted: #7d8590;
+  --fg-subtle: #6e7681;
+  --fg-on-emphasis: #ffffff;
+
+  /* Roles */
+  --success: #3fb950;
+  --success-emphasis: #238636;
+  --success-emphasis-hover: #2ea043;
+  --danger: #f85149;
+  --danger-fg: #ffa198;
+  --attention: #d29922;
+  --done: #d2a8ff;
+  --accent-code: #7ee787;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+
+  /* Theme tokens — overridden by ThemeProvider. Defaults match the
+     "blue / Rounded / Comfortable" preset. */
+  --pa: #58a6ff;
+  --pa-deep: #1f6feb;
+  --pa-lite: #a5d6ff;
+  --pa-t12: rgba(88, 166, 255, 0.13);
+  --pa-t40: rgba(88, 166, 255, 0.42);
+  --rad: 12px;
+  --rad-sm: 8px;
+  --dsc: 1;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-canvas);
+  color: var(--fg-default);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--pa);
+  text-decoration: none;
+}
+a:hover {
+  color: #79c0ff;
+}
+
+::selection {
+  background: var(--pa-t40);
+}
+
+/* Custom scrollbars for scroll containers */
+.prl-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.prl-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--rad-sm);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.prl-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Reusable helpers */
+.prl-mono {
+  font-family: var(--font-mono);
+}

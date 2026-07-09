@@ -1,0 +1,8 @@
+.page {
+  background: var(--bg-inset);
+  min-height: 100vh;
+}
+
+.spacer {
+  height: 40px;
+}

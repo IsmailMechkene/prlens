@@ -1,0 +1,94 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: calc(15px * var(--dsc)) 18px;
+  border-top: 1px solid var(--border-muted);
+}
+.row:first-child {
+  border-top: none;
+}
+.icon {
+  color: var(--fg-subtle);
+  flex-shrink: 0;
+}
+
+.meta {
+  flex: 1;
+  min-width: 0;
+}
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-default);
+}
+.visibility {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  border: 1px solid var(--border-default);
+  padding: 1px 8px;
+  border-radius: 100px;
+}
+.updated {
+  font-size: 12px;
+  color: var(--fg-subtle);
+  margin-top: 3px;
+}
+
+.configured {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.configuredLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--success);
+}
+.settingsLink {
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--pa);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.settingsLink:hover {
+  text-decoration: underline;
+}
+
+.enable {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--fg-default);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: var(--rad-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.enable:hover:not(:disabled) {
+  border-color: var(--success);
+  color: var(--success);
+}
+.enable:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

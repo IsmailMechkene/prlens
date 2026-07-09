@@ -1,0 +1,230 @@
+.wrap {
+  max-width: 860px;
+  margin: 40px auto 0;
+  padding: 0 32px;
+}
+
+.window {
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad);
+  background: var(--bg-inset);
+  overflow: hidden;
+  box-shadow:
+    0 24px 60px -20px rgba(1, 4, 9, 0.9),
+    0 0 0 1px rgba(48, 54, 61, 0.5);
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-muted);
+  background: var(--bg-surface);
+}
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.url {
+  margin-left: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prHeader {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border-muted);
+}
+.prTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.openPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--success-emphasis);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+.prTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+.prNum {
+  color: var(--fg-subtle);
+  font-size: 14px;
+}
+
+.labels {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 100px;
+  border: 1px solid transparent;
+}
+.labelDanger {
+  color: var(--danger);
+  border-color: rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.1);
+}
+.labelWarn {
+  color: var(--attention);
+  border-color: rgba(210, 153, 34, 0.4);
+  background: rgba(210, 153, 34, 0.1);
+}
+.labelAccent {
+  color: var(--pa);
+  border-color: var(--pa-t40);
+  background: var(--pa-t12);
+}
+
+.body {
+  padding: 18px;
+}
+
+.diff {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-sm);
+  overflow: hidden;
+}
+.diffLine {
+  display: flex;
+  background: var(--bg-surface);
+}
+.diffRemoved {
+  background: rgba(248, 81, 73, 0.08);
+}
+.gutter {
+  width: 42px;
+  text-align: right;
+  padding: 3px 10px;
+  color: var(--fg-subtle);
+  user-select: none;
+  flex-shrink: 0;
+}
+.gutterRemoved {
+  color: var(--danger);
+}
+.code {
+  padding: 3px 12px;
+}
+
+.commentRow {
+  margin-top: 14px;
+  margin-left: 24px;
+  display: flex;
+  gap: 12px;
+}
+.avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--rad-sm);
+  background: linear-gradient(140deg, var(--pa), var(--pa-deep));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1px var(--pa-t40);
+}
+.comment {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-sm);
+  overflow: hidden;
+}
+.commentHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  flex-wrap: wrap;
+}
+.botName {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.botTag {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  border: 1px solid var(--border-default);
+  padding: 1px 6px;
+  border-radius: 100px;
+}
+.commentedAt {
+  font-size: 12.5px;
+  color: var(--fg-subtle);
+}
+.critical {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(248, 81, 73, 0.12);
+  padding: 3px 9px;
+  border-radius: 100px;
+}
+.commentBody {
+  padding: 13px 15px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--fg-default);
+}
+.codeDanger,
+.codeOk {
+  font-family: var(--font-mono);
+  background: var(--bg-surface);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.codeDanger {
+  color: var(--danger-fg);
+}
+.codeOk {
+  color: var(--accent-code);
+}
+.commentMeta {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  flex-wrap: wrap;
+}
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.metaSep {
+  color: var(--border-default);
+}

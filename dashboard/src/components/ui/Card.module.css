@@ -1,0 +1,9 @@
+.card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad);
+  background: var(--bg-surface);
+}
+
+.flush {
+  overflow: hidden;
+}

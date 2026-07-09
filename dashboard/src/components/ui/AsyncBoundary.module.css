@@ -1,0 +1,43 @@
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid var(--border-default);
+  border-top-color: var(--pa);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+
+.retry {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pa);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.retry:hover {
+  text-decoration: underline;
+}

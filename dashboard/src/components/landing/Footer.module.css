@@ -1,0 +1,39 @@
+.footer {
+  max-width: 1140px;
+  margin: 100px auto 0;
+  padding: 28px 32px;
+  border-top: 1px solid var(--border-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.name {
+  font-weight: 600;
+  color: var(--fg-default);
+}
+.sep {
+  color: var(--border-default);
+}
+
+.links {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.link {
+  cursor: pointer;
+}
+.link:hover {
+  color: var(--fg-default);
+}

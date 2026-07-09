@@ -1,0 +1,198 @@
+.container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: calc(30px * var(--dsc)) 36px calc(60px * var(--dsc));
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+.crumbLink {
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.crumbLink:hover {
+  color: var(--fg-default);
+}
+.crumbCurrent {
+  color: var(--fg-default);
+  font-family: var(--font-mono);
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 26px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  font-family: var(--font-mono);
+}
+.visibility {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  border: 1px solid var(--border-default);
+  padding: 2px 9px;
+  border-radius: 100px;
+}
+.desc {
+  font-size: 13.5px;
+  color: var(--fg-muted);
+  margin: 0;
+  max-width: 520px;
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ghLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--fg-default);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 13px;
+  border-radius: var(--rad-sm);
+}
+.ghLink:hover {
+  color: var(--fg-default);
+  border-color: #8b949e;
+}
+.toggleBox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  padding: 7px 13px;
+  border-radius: var(--rad-sm);
+}
+.toggleLabel {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Charts */
+.charts {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.chartCard {
+  padding: calc(18px * var(--dsc)) 20px;
+}
+.chartHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.chartTitle {
+  font-size: 14.5px;
+  font-weight: 600;
+  margin: 0;
+}
+.chartMeta {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.scoreRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.score {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.scoreDelta {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.donutRow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 8px;
+}
+.legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+}
+.legendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+.legendLabel {
+  color: var(--fg-secondary);
+}
+.legendVal {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+}
+
+/* Lower grid */
+.lower {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.panelHead {
+  padding: calc(15px * var(--dsc)) 18px;
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 960px) {
+  .charts,
+  .lower {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .container {
+    padding: 24px 18px 40px;
+  }
+}
