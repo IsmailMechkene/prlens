@@ -6,7 +6,8 @@ import threading
 import time
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Depends
+from starlette.middleware.sessions import SessionMiddleware
 
 from prlens.config.settings import load_settings
 from prlens.core.agent import Agent
@@ -19,16 +20,28 @@ from prlens.llm.client import LLMClient
 from contextlib import asynccontextmanager
 from database.connection import init_db
 
+from fastapi.responses import RedirectResponse
+from auth.github_oauth import get_github_auth_url
+from auth.github_oauth import exchange_code_for_token, get_github_user
+from database.connection import get_db
+from database.models import User
+from sqlalchemy.orm import Session
+
+
 load_dotenv()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     init_db()
     yield
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
+)
 
 _processing_lock = threading.Lock()
 _processing_prs: set = set()
@@ -77,6 +90,17 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
         with _processing_lock:
             _processing_prs.discard(pr_key)
 
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
 @app.get("/")
 def health_check():
     return {"status": "ok", "service": "PRLens"}
@@ -112,4 +136,29 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     return {"status": "accepted"}
 
 
+@app.get("/auth/github")
+def github_login():
+    return RedirectResponse(get_github_auth_url())
 
+
+@app.get("/auth/callback")
+async def github_callback(code: str, request: Request, db: Session = Depends(get_db)):
+    token = await exchange_code_for_token(code)
+    github_user = await get_github_user(token)
+
+    # Save or update user in database
+    user = db.query(User).filter(User.github_id == github_user["id"]).first()
+    if not user:
+        user = User(
+            github_id=github_user["id"],
+            name=github_user.get("name") or github_user["login"],
+            handle=f"@{github_user['login']}",
+            initials=github_user["login"][:2].upper(),
+            avatar_url=github_user.get("avatar_url"),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    request.session["user_id"] = user.id
+    return RedirectResponse("/dashboard")
