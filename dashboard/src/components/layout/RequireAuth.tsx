@@ -7,9 +7,10 @@ import { AsyncBoundary } from '../ui/AsyncBoundary'
 /**
  * Route guard for the authenticated app shell.
  *
- * Probes GET /api/user; a 401 means there is no session cookie, so the browser
- * is handed to the backend's OAuth entrypoint. In mock mode there is no backend
- * to log in to, so the guard is inert.
+ * Probes GET /api/user; a 401 means there is no valid bearer token (missing or
+ * expired), so the browser is handed to the backend's OAuth entrypoint, which
+ * mints a fresh token. In mock mode there is no backend to log in to, so the
+ * guard is inert.
  */
 export function RequireAuth() {
   const user = useAsync(() => api.getUser(), [])

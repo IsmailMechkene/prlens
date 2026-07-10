@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal, NamedTuple
 
 import httpx
+import jwt as pyjwt
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,6 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session, joinedload, sessionmaker
-from starlette.middleware.sessions import SessionMiddleware
 
 from auth.github_oauth import (
     exchange_code_for_token,
@@ -57,18 +57,20 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
-)
+# Auth is a bearer JWT in the Authorization header, not a cookie, so the backend
+# (railway.app) and dashboard (ismailmechkene.dev) can live on different domains.
+# The signing key is shared with the OAuth callback that mints the token below.
+JWT_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_TTL = timedelta(days=30)
 
-# The dashboard sends its session cookie cross-origin (vite:5173 -> api:8000),
-# so credentials must be allowed and the origin echoed explicitly ("*" is
-# rejected by browsers on credentialed requests).
+# The dashboard authenticates with a bearer token, so no credentialed cookies
+# cross the origin boundary. allow_credentials stays False and the Authorization
+# header is allowed through for the preflight.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_URLS,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -331,9 +333,19 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    user_id = request.session.get("user_id")
-    if not user_id:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = auth_header.removeprefix("Bearer ")
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload["user_id"]
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
@@ -479,7 +491,7 @@ def github_login():
 
 
 @app.get("/auth/callback")
-async def github_callback(code: str, request: Request, db: Session = Depends(get_db)):
+async def github_callback(code: str, db: Session = Depends(get_db)):
     token = await exchange_code_for_token(code)
     github_user = await get_github_user(token)
 
@@ -499,9 +511,15 @@ async def github_callback(code: str, request: Request, db: Session = Depends(get
     db.commit()
     db.refresh(user)
 
-    request.session["user_id"] = user.id
-    # The dashboard is served by Vite, not this app, so send the browser there.
-    return RedirectResponse(f"{FRONTEND_ORIGIN}/dashboard")
+    # Cross-domain auth: mint a bearer JWT and hand it to the dashboard in the URL.
+    # The dashboard (served by Vite, not this app) stores it and sends it back as
+    # an Authorization header on every API call — see get_current_user.
+    session_token = pyjwt.encode(
+        {"user_id": user.id, "exp": datetime.now(timezone.utc) + JWT_TTL},
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM,
+    )
+    return RedirectResponse(f"{FRONTEND_ORIGIN}/dashboard?token={session_token}")
 
 
 @app.get("/api/user")

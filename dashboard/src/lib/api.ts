@@ -34,6 +34,40 @@ const API_ROOT = `${BASE_URL}/api`
 /** Where to send the browser to start the GitHub OAuth dance. */
 export const githubLoginUrl = `${BASE_URL}/auth/github`
 
+/**
+ * Auth is a bearer JWT kept in localStorage, not a session cookie — the backend
+ * and dashboard live on different domains, so cookies can't be shared. The OAuth
+ * callback redirects to `/dashboard?token=…`; `captureAuthToken` persists that
+ * token and every request() below sends it as `Authorization: Bearer …`.
+ */
+const TOKEN_KEY = 'prlens_token'
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+/** Clear the stored token; the next guarded route will bounce to OAuth. */
+export function logout(): void {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+/**
+ * On post-OAuth load the token arrives as a `?token=` query param. Persist it and
+ * strip it from the URL so it isn't left in history or shared in links. Must run
+ * before React renders (see main.tsx) so the auth guard's first request carries it.
+ */
+export function captureAuthToken(): void {
+  const params = new URLSearchParams(window.location.search)
+  const token = params.get('token')
+  if (!token) return
+
+  localStorage.setItem(TOKEN_KEY, token)
+  params.delete('token')
+  const query = params.toString()
+  const url = window.location.pathname + (query ? `?${query}` : '') + window.location.hash
+  window.history.replaceState(null, '', url)
+}
+
 /** Simulate network latency so loading states are exercised in mock mode. */
 function mock<T>(value: T): Promise<T> {
   return new Promise((resolve) =>
@@ -42,9 +76,13 @@ function mock<T>(value: T): Promise<T> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken()
   const res = await fetch(`${API_ROOT}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    },
     ...init,
   })
   if (!res.ok) {
