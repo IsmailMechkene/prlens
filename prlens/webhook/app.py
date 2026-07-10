@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 # Origin the React dashboard is served from. Drives both the CORS allow-list and
 # the post-OAuth redirect, so a deployment only has to set this in one place.
 FRONTEND_URLS = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
+FRONTEND_ORIGIN = FRONTEND_URLS[0]
 
 
 @asynccontextmanager
@@ -500,7 +501,7 @@ async def github_callback(code: str, request: Request, db: Session = Depends(get
 
     request.session["user_id"] = user.id
     # The dashboard is served by Vite, not this app, so send the browser there.
-    return RedirectResponse(f"{FRONTEND_URL}/dashboard")
+    return RedirectResponse(f"{FRONTEND_ORIGIN}/dashboard")
 
 
 @app.get("/api/user")
