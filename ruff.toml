@@ -2,6 +2,5 @@ line-length = 88
 target-version = "py311"
 
 [lint]
-select = ["E", "F", "I"]
-# errors (formatting/style issues), pyflakes (unused imports, undefined names, etc.), import sorting
+select = ["E", "F", "I"]# errors (formatting/style issues), pyflakes (unused imports, undefined names, etc.), import sorting
 ignore = ["E501"]
