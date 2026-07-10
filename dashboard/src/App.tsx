@@ -6,6 +6,10 @@ import { LandingPage } from './pages/LandingPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { RepoDetailPage } from './pages/RepoDetailPage'
 import { ConnectPage } from './pages/ConnectPage'
+import { FeaturesPage } from './pages/FeaturesPage'
+import { DocsPage } from './pages/DocsPage'
+import { PrivacyPage } from './pages/PrivacyPage'
+import { TermsPage } from './pages/TermsPage'
 
 export default function App() {
   return (
@@ -13,6 +17,10 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/docs" element={<DocsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />

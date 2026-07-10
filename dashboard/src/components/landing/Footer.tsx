@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import styles from './Footer.module.css'
 
 export function Footer() {
@@ -10,8 +11,8 @@ export function Footer() {
         <span>© 2026</span>
       </div>
       <div className={styles.links}>
-        <span className={styles.link}>Privacy</span>
-        <span className={styles.link}>Terms</span>
+        <Link to="/privacy" className={styles.link}>Privacy</Link>
+        <Link to="/terms" className={styles.link}>Terms</Link>
         <span className={styles.link}>Status</span>
         <span className={styles.link}>GitHub</span>
       </div>

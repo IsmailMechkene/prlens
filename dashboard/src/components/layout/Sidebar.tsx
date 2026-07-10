@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { Icon } from '../ui/Icon'
@@ -8,7 +8,6 @@ import { ThemeControls } from './ThemeControls'
 import styles from './Sidebar.module.css'
 
 export function Sidebar() {
-  const navigate = useNavigate()
   const [themeOpen, setThemeOpen] = useState(false)
 
   const repos = useAsync(() => api.getRepos(), [])
@@ -25,9 +24,7 @@ export function Sidebar() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
-        <button type="button" className={styles.brandBtn} onClick={() => navigate('/')}>
-          <Logo size={30} />
-        </button>
+        <Logo size={30} />
       </div>
 
       <nav className={styles.nav}>

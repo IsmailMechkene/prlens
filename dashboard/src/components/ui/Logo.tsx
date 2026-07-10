@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import styles from './Logo.module.css'
 
 interface LogoProps {
@@ -11,7 +12,7 @@ interface LogoProps {
 
 export function Logo({ size = 30, withWordmark = true, ring = true }: LogoProps) {
   return (
-    <span className={styles.logo}>
+    <Link to="/" className={styles.logo} aria-label="PRLens home">
       <img
         src="/prlens_logo.png"
         alt="PRLens"
@@ -23,6 +24,6 @@ export function Logo({ size = 30, withWordmark = true, ring = true }: LogoProps)
         }}
       />
       {withWordmark && <span className={styles.word}>PRLens</span>}
-    </span>
+    </Link>
   )
 }

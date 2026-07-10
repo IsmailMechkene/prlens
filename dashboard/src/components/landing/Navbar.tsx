@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../ui/Logo'
 import { GitHubIcon } from '../ui/GitHubIcon'
 import styles from './Navbar.module.css'
@@ -10,8 +10,8 @@ export function Navbar() {
       <nav className={styles.nav}>
         <Logo size={30} />
         <div className={styles.links}>
-          <span className={styles.link}>Features</span>
-          <span className={styles.link}>Docs</span>
+          <Link to="/features" className={styles.link}>Features</Link>
+          <Link to="/docs" className={styles.link}>Docs</Link>
           <span className={styles.link}>Pricing</span>
           <button type="button" className={styles.signIn} onClick={() => navigate('/dashboard')}>
             <GitHubIcon size={15} /> Sign in
