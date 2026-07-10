@@ -48,7 +48,10 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"Warning: database init failed: {e}. App will start anyway.")
     yield
 
 app = FastAPI(lifespan=lifespan)
