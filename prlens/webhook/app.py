@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # Origin the React dashboard is served from. Drives both the CORS allow-list and
 # the post-OAuth redirect, so a deployment only has to set this in one place.
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+FRONTEND_URLS = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
 
 
 @asynccontextmanager
@@ -66,7 +66,7 @@ app.add_middleware(
 # rejected by browsers on credentialed requests).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
+    allow_origins=FRONTEND_URLS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
