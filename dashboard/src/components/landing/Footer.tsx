@@ -13,8 +13,15 @@ export function Footer() {
       <div className={styles.links}>
         <Link to="/privacy" className={styles.link}>Privacy</Link>
         <Link to="/terms" className={styles.link}>Terms</Link>
-        <span className={styles.link}>Status</span>
-        <span className={styles.link}>GitHub</span>
+        <Link to="/status" className={styles.link}>Status</Link>
+        <a
+          href="https://github.com/IsmailMechkene/prlens"
+          className={styles.link}
+          target="_blank"
+          rel="noreferrer"
+        >
+          GitHub
+        </a>
       </div>
     </footer>
   )

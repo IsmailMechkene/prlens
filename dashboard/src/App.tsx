@@ -10,6 +10,7 @@ import { FeaturesPage } from './pages/FeaturesPage'
 import { DocsPage } from './pages/DocsPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TermsPage } from './pages/TermsPage'
+import { StatusPage } from './pages/StatusPage'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/status" element={<StatusPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />

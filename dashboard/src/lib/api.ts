@@ -84,7 +84,28 @@ function toGitHubRepo(r: RepoDetail): GitHubRepo {
   }
 }
 
+export interface HealthCheck {
+  ok: boolean
+  latencyMs: number
+}
+
 export const api = {
+  /**
+   * Pings the backend's root health endpoint (`GET /`, outside `/api`).
+   * Resolves with `ok: false` instead of rejecting so callers can render
+   * an outage state without try/catch.
+   */
+  async getHealth(): Promise<HealthCheck> {
+    if (USE_MOCKS) return mock({ ok: true, latencyMs: 42 })
+    const started = performance.now()
+    try {
+      const res = await fetch(`${BASE_URL}/`, { signal: AbortSignal.timeout(8000) })
+      return { ok: res.ok, latencyMs: Math.round(performance.now() - started) }
+    } catch {
+      return { ok: false, latencyMs: Math.round(performance.now() - started) }
+    }
+  },
+
   getUser(): Promise<User> {
     if (USE_MOCKS) return mock(mockUser)
     return request<User>('/user')

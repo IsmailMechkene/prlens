@@ -1,0 +1,117 @@
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: var(--rad-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  margin-bottom: 28px;
+}
+
+.bannerOk {
+  border-color: rgba(63, 185, 80, 0.4);
+}
+
+.bannerDown {
+  border-color: rgba(248, 81, 73, 0.4);
+}
+
+.bannerText {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.checked {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--fg-subtle);
+}
+
+.list {
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-sm);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--bg-surface);
+}
+.row + .row {
+  border-top: 1px solid var(--border-muted);
+}
+
+.rowName {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+
+.rowDesc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-top: 2px;
+}
+
+.rowState {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stateOk {
+  color: var(--success);
+}
+.stateDown {
+  color: var(--danger);
+}
+.stateChecking {
+  color: var(--fg-muted);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dotOk {
+  background: var(--success);
+}
+.dotDown {
+  background: var(--danger);
+}
+.dotChecking {
+  background: var(--attention);
+}
+
+.latency {
+  font-weight: 400;
+  color: var(--fg-subtle);
+  margin-left: 6px;
+}
+
+.refresh {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pa);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.refresh:hover {
+  text-decoration: underline;
+}
+.refresh:disabled {
+  color: var(--fg-subtle);
+  cursor: default;
+  text-decoration: none;
+}
