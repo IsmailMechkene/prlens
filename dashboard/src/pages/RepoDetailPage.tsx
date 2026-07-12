@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
-import { confirmDisconnect, reportDisconnect } from '../lib/disconnect'
 import { useAsync } from '../lib/useAsync'
 import type { AsyncState } from '../lib/useAsync'
 import { issueColor } from '../lib/reviewStyles'
@@ -16,6 +15,7 @@ import { QualityTrendChart } from '../components/repo/QualityTrendChart'
 import { IssuesDonut } from '../components/repo/IssuesDonut'
 import { RecentReviews } from '../components/repo/RecentReviews'
 import { ReviewSettings } from '../components/repo/ReviewSettings'
+import { DisconnectDialog } from '../components/repo/DisconnectDialog'
 import styles from './RepoDetailPage.module.css'
 
 const detailSkeleton = (
@@ -100,7 +100,7 @@ function RepoDetailContent({
 }) {
   const navigate = useNavigate()
   const [active, setActive] = useState(detail.active)
-  const [disconnecting, setDisconnecting] = useState(false)
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
   const totalIssues = detail.issues.reduce((s, i) => s + i.value, 0)
 
   // The backend sends GitHub's full_name ("acme/api-gateway") as `name`, so
@@ -117,21 +117,18 @@ function RepoDetailContent({
     }
   }
 
-  const onDisconnect = async () => {
-    if (!confirmDisconnect(detail.name)) return
-    setDisconnecting(true)
-    try {
-      reportDisconnect(detail.name, await api.disconnectRepo(detail.name))
-      // The repo no longer exists as far as the app is concerned, so this page
-      // cannot stay: `replace` keeps Back from returning to a 404.
-      navigate('/connect', { replace: true })
-    } catch {
-      setDisconnecting(false)
-    }
-  }
-
   return (
     <>
+      <DisconnectDialog
+        repo={detail.name}
+        open={confirmingDisconnect}
+        onCancel={() => setConfirmingDisconnect(false)}
+        onDone={() => {
+          // The repo no longer exists as far as the app is concerned, so this page
+          // cannot stay: `replace` keeps Back from returning to a dead route.
+          navigate('/connect', { replace: true })
+        }}
+      />
       {/* Header */}
       <div className={styles.header}>
         <div>
@@ -153,11 +150,9 @@ function RepoDetailContent({
           <button
             type="button"
             className={styles.disconnect}
-            onClick={onDisconnect}
-            disabled={disconnecting}
+            onClick={() => setConfirmingDisconnect(true)}
           >
-            <Icon name="trash-2" size={14} />
-            {disconnecting ? 'Removing…' : 'Disconnect'}
+            <Icon name="trash-2" size={14} /> Disconnect
           </button>
           <div className={styles.toggleBox}>
             <span

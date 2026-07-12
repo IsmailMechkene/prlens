@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
-import { confirmDisconnect, reportDisconnect } from '../../lib/disconnect'
 import type { GitHubRepo } from '../../lib/types'
 import { Icon } from '../ui/Icon'
+import { DisconnectDialog } from '../repo/DisconnectDialog'
 import styles from './ConnectRepoRow.module.css'
 
 interface ConnectRepoRowProps {
@@ -15,6 +15,7 @@ interface ConnectRepoRowProps {
 export function ConnectRepoRow({ repo, onChanged }: ConnectRepoRowProps) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
 
   // repo.name is the GitHub full_name ("acme/api-gateway"), so it must be encoded
   // to stay a single path segment under the /repos/:name route.
@@ -31,19 +32,17 @@ export function ConnectRepoRow({ repo, onChanged }: ConnectRepoRowProps) {
     }
   }
 
-  const disconnect = async () => {
-    if (!confirmDisconnect(repo.name)) return
-    setBusy(true)
-    try {
-      reportDisconnect(repo.name, await api.disconnectRepo(repo.name))
-      onChanged()
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
     <div className={styles.row}>
+      <DisconnectDialog
+        repo={repo.name}
+        open={confirming}
+        onCancel={() => setConfirming(false)}
+        onDone={() => {
+          setConfirming(false)
+          onChanged()
+        }}
+      />
       <Icon name={repo.visibility === 'Public' ? 'book' : 'lock'} size={17} className={styles.icon} />
       <div className={styles.meta}>
         <div className={styles.nameRow}>
@@ -68,10 +67,10 @@ export function ConnectRepoRow({ repo, onChanged }: ConnectRepoRowProps) {
           <button
             type="button"
             className={styles.disconnect}
-            onClick={disconnect}
+            onClick={() => setConfirming(true)}
             disabled={busy}
           >
-            {busy ? 'Removing…' : 'Disconnect'}
+            Disconnect
           </button>
         </div>
       ) : (
