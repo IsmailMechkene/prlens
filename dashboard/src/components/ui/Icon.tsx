@@ -10,6 +10,7 @@ import {
   Clock,
   FileCode,
   Gauge,
+  GitBranch,
   GitPullRequest,
   LayoutDashboard,
   Lock,
@@ -48,6 +49,9 @@ const REGISTRY: Record<string, LucideIcon> = {
   clock: Clock,
   'file-code': FileCode,
   gauge: Gauge,
+  // The stats endpoint asks for this one; without it the "Repos connected" tile
+  // rendered with no icon at all.
+  'git-branch': GitBranch,
   'git-pull-request': GitPullRequest,
   'layout-dashboard': LayoutDashboard,
   lock: Lock,

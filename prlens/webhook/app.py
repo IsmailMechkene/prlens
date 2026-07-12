@@ -735,25 +735,42 @@ def get_stats(current_user: User = Depends(get_current_user), db: Session = Depe
         Installation.user_id == current_user.id
     ).count()
 
+    active_repos = db.query(Installation).filter(
+        Installation.user_id == current_user.id,
+        Installation.active.is_(True),
+    ).count()
+
+    # The dashboard has a tile for this, and the endpoint never sent it — so it sat
+    # empty. None (no reviews yet) is an em dash rather than a misleading 0.
+    average_score = db.query(func.avg(Review.score)).join(Installation).filter(
+        Installation.user_id == current_user.id
+    ).scalar()
+    average_score_text = str(round(average_score)) if average_score is not None else "—"
+
+    reviews_this_week = db.query(Review).join(Installation).filter(
+        Installation.user_id == current_user.id,
+        Review.reviewed_at >= datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7),
+    ).count()
+
     return {
         "stats": [
-            {
-                "id": "repos",
-                "label": "Repos connected",
-                "value": str(total_repos),
-                "delta": "",
-                "trend": "neutral",
-                "icon": "git-branch",
-                "iconColor": "var(--pa)"
-            },
             {
                 "id": "prs",
                 "label": "PRs reviewed",
                 "value": str(total_prs),
-                "delta": "",
-                "trend": "neutral",
+                "delta": f"+{reviews_this_week} this wk" if reviews_this_week else "",
+                "trend": "up" if reviews_this_week else "neutral",
                 "icon": "git-pull-request",
                 "iconColor": "var(--pa)"
+            },
+            {
+                "id": "score",
+                "label": "Average score",
+                "value": average_score_text,
+                "delta": "",
+                "trend": "neutral",
+                "icon": "gauge",
+                "iconColor": "var(--success)"
             },
             {
                 "id": "issues",
@@ -762,7 +779,16 @@ def get_stats(current_user: User = Depends(get_current_user), db: Session = Depe
                 "delta": "",
                 "trend": "neutral",
                 "icon": "shield-alert",
-                "iconColor": "var(--pa)"
+                "iconColor": "var(--danger)"
+            },
+            {
+                "id": "repos",
+                "label": "Repos connected",
+                "value": str(total_repos),
+                "delta": f"{active_repos} active" if total_repos else "",
+                "trend": "neutral",
+                "icon": "git-branch",
+                "iconColor": "var(--done)"
             },
         ]
     }
