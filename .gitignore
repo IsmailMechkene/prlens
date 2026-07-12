@@ -16,7 +16,7 @@ __pycache__/
 *.pem
 
 
-/CODE_REVIEW.md
-/INFOS.md
+/docs/CODE_REVIEW.md
+/docs/INFOS.md
 /DEBUG_ANALYSIS.txt
-/CLAUDE_LOG.md
+/docs/CLAUDE_LOG.md

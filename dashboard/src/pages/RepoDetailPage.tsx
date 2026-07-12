@@ -32,7 +32,14 @@ export function RepoDetailPage() {
       </div>
 
       <AsyncBoundary state={repo} minHeight={400}>
-        {(data) => <RepoDetailContent detail={data} reviews={reviews} />}
+        {/*
+          Keyed by repo: navigating from one repo to another keeps this subtree
+          mounted (useAsync holds the previous data while refetching), so without a
+          key the `useState(initial)` seeds below — the active toggle and the whole
+          settings form — would keep the *previous* repo's values, and saving would
+          write them onto this one.
+        */}
+        {(data) => <RepoDetailContent key={data.name} detail={data} reviews={reviews} />}
       </AsyncBoundary>
     </div>
   )
@@ -47,6 +54,11 @@ function RepoDetailContent({
 }) {
   const [active, setActive] = useState(detail.active)
   const totalIssues = detail.issues.reduce((s, i) => s + i.value, 0)
+
+  // The backend sends GitHub's full_name ("acme/api-gateway") as `name`, so
+  // prefixing it with the owner again yields "acme/acme/api-gateway" — and a
+  // GitHub link that 404s. The mock fixtures use the short name, hence the check.
+  const fullName = detail.name.includes('/') ? detail.name : `${detail.owner}/${detail.name}`
 
   const onToggle = async (next: boolean) => {
     setActive(next)
@@ -63,9 +75,7 @@ function RepoDetailContent({
       <div className={styles.header}>
         <div>
           <div className={styles.titleRow}>
-            <h1 className={styles.title}>
-              {detail.owner}/{detail.name}
-            </h1>
+            <h1 className={styles.title}>{fullName}</h1>
             <span className={styles.visibility}>{detail.visibility}</span>
           </div>
           <p className={styles.desc}>{detail.description}</p>
@@ -73,7 +83,7 @@ function RepoDetailContent({
         <div className={styles.headerActions}>
           <a
             className={styles.ghLink}
-            href={`https://github.com/${detail.owner}/${detail.name}`}
+            href={`https://github.com/${fullName}`}
             target="_blank"
             rel="noreferrer"
           >

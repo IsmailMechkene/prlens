@@ -1,32 +1,26 @@
-import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
-import { ApiError, api, githubLoginUrl, USE_MOCKS } from '../../lib/api'
+import { ApiError, api, isLoginRedirectPending } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { AsyncBoundary } from '../ui/AsyncBoundary'
 
 /**
  * Route guard for the authenticated app shell.
  *
- * Probes GET /api/user; a 401 means there is no valid bearer token (missing or
- * expired), so the browser is handed to the backend's OAuth entrypoint, which
- * mints a fresh token. In mock mode there is no backend to log in to, so the
- * guard is inert.
+ * Probes GET /api/user. The API client owns the response to a 401 — it drops the
+ * dead token and hands the browser to the backend's OAuth entrypoint (see
+ * startLogin), which is also what happens when a token expires mid-session on any
+ * other call. All this guard does is decide what to paint in the meantime: nothing
+ * while that full-page navigation is in flight, and the boundary's error state if
+ * the redirect was suppressed (mock mode, or a login that already failed once —
+ * without which a backend that keeps rejecting tokens would bounce the browser
+ * between the dashboard and GitHub forever).
  */
 export function RequireAuth() {
   const user = useAsync(() => api.getUser(), [])
 
   const unauthenticated = user.error instanceof ApiError && user.error.status === 401
 
-  useEffect(() => {
-    if (unauthenticated && !USE_MOCKS) {
-      // Full page navigation, not a router push: the OAuth flow leaves the SPA.
-      window.location.href = githubLoginUrl
-    }
-  }, [unauthenticated])
-
-  // Render nothing while the redirect above is in flight, rather than flashing
-  // the AsyncBoundary's "Couldn't load data" error state.
-  if (unauthenticated) return null
+  if (unauthenticated && isLoginRedirectPending()) return null
 
   return (
     <AsyncBoundary state={user} minHeight={320}>

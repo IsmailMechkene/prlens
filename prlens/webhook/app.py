@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 from collections import defaultdict
@@ -18,9 +19,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from auth.github_oauth import (
+    OAuthError,
     exchange_code_for_token,
     get_github_auth_url,
     get_github_user,
@@ -60,7 +63,18 @@ app = FastAPI(lifespan=lifespan)
 # Auth is a bearer JWT in the Authorization header, not a cookie, so the backend
 # (railway.app) and dashboard (ismailmechkene.dev) can live on different domains.
 # The signing key is shared with the OAuth callback that mints the token below.
-JWT_SECRET = os.getenv("SESSION_SECRET", "dev-secret-change-in-production")
+#
+# Falling back to a *published* constant would let anyone forge a token for any
+# user id on a deployment that forgot to set SESSION_SECRET, so an unset secret
+# falls back to a random per-process one instead: tokens then simply do not
+# survive a restart, which is a login prompt rather than a takeover.
+JWT_SECRET = os.getenv("SESSION_SECRET")
+if not JWT_SECRET:
+    logger.warning(
+        "SESSION_SECRET is not set; using a random per-process signing key. "
+        "Sessions will not survive a restart and will not work across replicas."
+    )
+    JWT_SECRET = secrets.token_urlsafe(32)
 JWT_ALGORITHM = "HS256"
 JWT_TTL = timedelta(days=30)
 
@@ -201,16 +215,24 @@ def _repo_config(repo_name: str) -> _RepoConfig | None:
         local_session = sessionmaker(bind=engine)
         db = local_session()
         try:
-            installation = db.query(Installation).filter(
+            installations = db.query(Installation).filter(
                 Installation.repo_name == repo_name
-            ).first()
+            ).order_by(Installation.id).all()
 
-            if installation is None:
+            if not installations:
                 return None
 
+            # The unique key is (user_id, repo_name), so the same repo can be
+            # connected by several users. Reviewing stays on as long as one of them
+            # has it enabled, and that installation's settings are the ones used —
+            # taking an arbitrary .first() would let one paused installation
+            # silently disable reviewing for everybody else on the repo.
+            active = next((inst for inst in installations if inst.active), None)
+            chosen = active if active is not None else installations[0]
+
             return _RepoConfig(
-                _settings_from_installation(installation, load_settings()),
-                bool(installation.active),
+                _settings_from_installation(chosen, load_settings()),
+                active is not None,
             )
         finally:
             db.close()
@@ -245,36 +267,45 @@ def _persist_review(repo_name: str, pr: PR, result: ReviewResult, status: str) -
     local_session = sessionmaker(bind=engine)
     db = local_session()
     try:
-        installation = db.query(Installation).filter(
+        installations = db.query(Installation).filter(
             Installation.repo_name == repo_name,
             Installation.active.is_(True),
-        ).first()
+        ).all()
 
-        if not installation:
+        if not installations:
             logger.info("No active installation for %s; review not stored", repo_name)
             return
 
-        review = Review(
-            installation_id=installation.id,
-            pr_number=pr.number,
-            pr_title=pr.title,
-            score=result.score,
-            status=status,
-        )
-        db.add(review)
-        db.flush()  # assigns review.id for the comment rows below
+        # Review.pr_title is a VARCHAR(255) while GitHub allows titles up to 256
+        # characters, and an over-long value is a hard error on Postgres (not a
+        # silent truncation), which would lose the whole row.
+        pr_title = (pr.title or "")[:255]
 
-        for comment in result.comments:
-            db.add(ReviewComment(
-                review_id=review.id,
-                file_path=comment.file_path,
-                # line is NOT NULL; file-level comments carry no line number.
-                line=comment.line or 0,
-                type=comment.type.value,
-                severity=comment.severity.value,
-                message=comment.message,
-                suggestion=comment.suggestion,
-            ))
+        # One repo can be connected by several users — the unique key is
+        # (user_id, repo_name) — and each has their own dashboard, so the review is
+        # mirrored onto every active installation rather than an arbitrary one.
+        for installation in installations:
+            review = Review(
+                installation_id=installation.id,
+                pr_number=pr.number,
+                pr_title=pr_title,
+                score=result.score,
+                status=status,
+            )
+            db.add(review)
+            db.flush()  # assigns review.id for the comment rows below
+
+            for comment in result.comments:
+                db.add(ReviewComment(
+                    review_id=review.id,
+                    file_path=comment.file_path,
+                    # line is NOT NULL; file-level comments carry no line number.
+                    line=comment.line or 0,
+                    type=comment.type.value,
+                    severity=comment.severity.value,
+                    message=comment.message,
+                    suggestion=comment.suggestion,
+                ))
 
         db.commit()
     finally:
@@ -302,6 +333,13 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
         _processing_prs.add(pr_key)
         _last_processed[pr_key] = now
 
+        # Timestamps older than the debounce window can no longer suppress
+        # anything, so drop them instead of keeping one entry per PR ever seen
+        # for the lifetime of the process.
+        for key, last_seen in list(_last_processed.items()):
+            if key != pr_key and now - last_seen >= DEBOUNCE_SECONDS:
+                del _last_processed[key]
+
     try:
         # A connected repo reviews with the settings edited in the dashboard;
         # anything else falls back to .aireviewer.yml.
@@ -318,7 +356,15 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
         analyzer = Analyzer(llm_client)
         pr_publisher = PRPublisher(github_client, settings)
         agent = Agent(llm_client, pr_fetcher, pr_publisher, analyzer, settings)
-        review_output = agent.run(repo_name, pr_number, actor)
+
+        # Runs on a BackgroundTasks worker after the webhook response has already
+        # been sent, so an escaping exception cannot be turned into an HTTP error —
+        # it would only surface as an unhandled ASGI error. Log it and stop.
+        try:
+            review_output = agent.run(repo_name, pr_number, actor)
+        except Exception:
+            logger.exception("Review failed for %s", pr_key)
+            return
 
         # The review is already live on the PR by now, so nothing below may be
         # allowed to fail the task — the dashboard row is a best-effort mirror.
@@ -344,6 +390,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except KeyError:
+        # Correctly signed but not one of ours (no user_id claim): still a failed
+        # authentication, not a 500.
         raise HTTPException(status_code=401, detail="Invalid token")
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -492,8 +542,17 @@ def github_login():
 
 @app.get("/auth/callback")
 async def github_callback(code: str, db: Session = Depends(get_db)):
-    token = await exchange_code_for_token(code)
+    # An expired or already-redeemed code (a reload of this URL, or the back
+    # button) comes back from GitHub as HTTP 200 with an error body and no
+    # access_token. That is a bad request, not a crash.
+    try:
+        token = await exchange_code_for_token(code)
+    except OAuthError as e:
+        raise HTTPException(status_code=400, detail=f"GitHub sign-in failed: {e}")
+
     github_user = await get_github_user(token)
+    if not isinstance(github_user, dict) or "id" not in github_user or "login" not in github_user:
+        raise HTTPException(status_code=400, detail="Could not read the GitHub profile")
 
     # Save or update user in database
     user = db.query(User).filter(User.github_id == github_user["id"]).first()
@@ -697,11 +756,28 @@ def enable_repo(
             reviewer_map={},
         )
         db.add(installation)
+        try:
+            db.commit()
+        except IntegrityError:
+            # Two enables raced for the same repo: both saw no row, both inserted,
+            # and the (user_id, repo_name) unique key rejected the loser. Reuse the
+            # row the winner committed instead of returning a 500 — the endpoint is
+            # meant to be idempotent.
+            db.rollback()
+            installation = db.query(Installation).filter(
+                Installation.user_id == current_user.id,
+                Installation.repo_name == name,
+            ).first()
+            if installation is None:
+                raise HTTPException(status_code=500, detail="Could not enable repo")
+            installation.connected = True
+            installation.active = True
+            db.commit()
     else:
         installation.connected = True
         installation.active = True
+        db.commit()
 
-    db.commit()
     db.refresh(installation)
 
     return serialize_repo(installation)
@@ -723,6 +799,15 @@ async def get_github_repos(
                 "Accept": "application/json",
             }
         )
+
+    # An error body is a dict, not a list, and the comprehension below would just
+    # skip it — the dashboard would show "no repositories" for what is really a
+    # revoked or expired OAuth token. Surface it instead.
+    if response.status_code != 200:
+        logger.warning("GitHub /user/repos returned %s", response.status_code)
+        if response.status_code == 401:
+            raise HTTPException(status_code=401, detail="GitHub token expired")
+        raise HTTPException(status_code=502, detail="Could not list repositories from GitHub")
 
     github_repos = response.json()
 

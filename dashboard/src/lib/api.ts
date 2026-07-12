@@ -41,14 +41,94 @@ export const githubLoginUrl = `${BASE_URL}/auth/github`
  * token and every request() below sends it as `Authorization: Bearer …`.
  */
 const TOKEN_KEY = 'prlens_token'
+/** Marks that an OAuth redirect has already been tried since the last good call. */
+const LOGIN_TRIED_KEY = 'prlens_login_tried'
+
+/**
+ * Web Storage is not always reachable: reading `window.localStorage` throws a
+ * SecurityError when the browser blocks storage (some private-browsing modes,
+ * third-party-cookie-blocked iframes), and `setItem` can throw a quota error even
+ * when reading works. Every access goes through this wrapper, which keeps an
+ * in-memory copy so a storage failure costs the user persistence across reloads
+ * rather than white-screening the app on boot.
+ */
+class SafeStore {
+  private memory = new Map<string, string>()
+  private backing: Storage | null
+
+  constructor(open: () => Storage) {
+    try {
+      this.backing = open()
+    } catch {
+      this.backing = null
+    }
+  }
+
+  getItem(key: string): string | null {
+    try {
+      return this.backing?.getItem(key) ?? this.memory.get(key) ?? null
+    } catch {
+      return this.memory.get(key) ?? null
+    }
+  }
+
+  setItem(key: string, value: string): void {
+    this.memory.set(key, value)
+    try {
+      this.backing?.setItem(key, value)
+    } catch {
+      /* keep the in-memory copy */
+    }
+  }
+
+  removeItem(key: string): void {
+    this.memory.delete(key)
+    try {
+      this.backing?.removeItem(key)
+    } catch {
+      /* already gone as far as this tab is concerned */
+    }
+  }
+}
+
+const tokenStore = new SafeStore(() => window.localStorage)
+const loginStore = new SafeStore(() => window.sessionStorage)
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  return tokenStore.getItem(TOKEN_KEY)
 }
 
 /** Clear the stored token; the next guarded route will bounce to OAuth. */
 export function logout(): void {
-  localStorage.removeItem(TOKEN_KEY)
+  tokenStore.removeItem(TOKEN_KEY)
+}
+
+/** True once startLogin() has begun a full-page navigation to GitHub. */
+let loginRedirectPending = false
+
+export function isLoginRedirectPending(): boolean {
+  return loginRedirectPending
+}
+
+/**
+ * Hand the browser to the backend's OAuth entrypoint to mint a fresh token.
+ *
+ * At most one attempt is made per failing session: if the token we come back with
+ * is rejected too, redirecting again would spin the browser between the dashboard
+ * and GitHub forever. The flag is cleared by the first successful API call, so a
+ * later expiry re-authenticates normally.
+ *
+ * Returns whether a redirect was actually started.
+ */
+export function startLogin(): boolean {
+  if (USE_MOCKS) return false // no backend to log in to
+  if (loginRedirectPending) return false
+  if (loginStore.getItem(LOGIN_TRIED_KEY)) return false
+
+  loginStore.setItem(LOGIN_TRIED_KEY, '1')
+  loginRedirectPending = true
+  window.location.href = githubLoginUrl
+  return true
 }
 
 /**
@@ -61,7 +141,7 @@ export function captureAuthToken(): void {
   const token = params.get('token')
   if (!token) return
 
-  localStorage.setItem(TOKEN_KEY, token)
+  tokenStore.setItem(TOKEN_KEY, token)
   params.delete('token')
   const query = params.toString()
   const url = window.location.pathname + (query ? `?${query}` : '') + window.location.hash
@@ -78,16 +158,33 @@ function mock<T>(value: T): Promise<T> {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken()
   const res = await fetch(`${API_ROOT}${path}`, {
+    // `init` is spread first: spreading it last would let a caller-supplied
+    // `headers` replace the merged object below, dropping the bearer token.
+    ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
-    ...init,
   })
+
+  // Any endpoint can answer 401 — not just the one the auth guard probes on mount
+  // — once a 30-day token expires or the account behind it is gone. Drop the dead
+  // token and re-authenticate, instead of leaving the user on a page that can only
+  // say "couldn't load data" until they clear storage by hand.
+  if (res.status === 401) {
+    logout()
+    startLogin()
+    throw new ApiError(401, `${init?.method ?? 'GET'} ${path} → 401`)
+  }
+
   if (!res.ok) {
     throw new ApiError(res.status, `${init?.method ?? 'GET'} ${path} → ${res.status}`)
   }
+
+  // The token works, so a future 401 is a fresh expiry and may redirect again.
+  loginStore.removeItem(LOGIN_TRIED_KEY)
+
   return (await res.json()) as T
 }
 
