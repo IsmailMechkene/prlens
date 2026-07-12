@@ -2,6 +2,8 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+from pydantic import ValidationError
+
 from prlens.config.settings import Settings, filter_files
 from prlens.llm.client import LLMClient
 from prlens.llm.prompts import SYSTEM_PROMPT, build_user_prompt
@@ -80,10 +82,33 @@ class Analyzer:
         )
 
     def _parse_response(self, response: str) -> FileReviewResponse:
-        response = response.strip()
+        """Parse one file's review, salvaging whatever is valid.
 
-        data = json.loads(response)
-        return FileReviewResponse(**data)
+        Validating the payload in one go — ``FileReviewResponse(**data)`` — made a
+        single malformed comment fatal for the whole file: its other comments, its
+        positives and its recommendations were all discarded and the file was marked
+        failed, which in turn drags the PR towards a TOTAL_FAILURE verdict and
+        inflates the score, since the findings that would have lowered it are gone.
+        One bad comment out of eight is not a failed file, so comments are validated
+        one at a time and only the irreparable ones are dropped.
+        """
+        data = json.loads(response.strip())
+
+        if not isinstance(data, dict):
+            raise TypeError(f"expected a JSON object, got {type(data).__name__}")
+
+        comments = []
+        for raw in data.get("comments") or []:
+            try:
+                comments.append(ReviewComment(**raw))
+            except (ValidationError, TypeError) as e:
+                logger.warning("Dropping an unparseable comment: %s (%s)", raw, e)
+
+        return FileReviewResponse(
+            comments=comments,
+            positives=data.get("positives") or [],
+            recommendations=data.get("recommendations") or [],
+        )
 
     def _calculate_score(self, comments: list[ReviewComment]) -> int:
         PENALTIES = {

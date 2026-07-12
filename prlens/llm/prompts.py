@@ -83,6 +83,17 @@ Critical Rules
     14. If no meaningful issues exist, return an empty comments array.
     15. Base "positives" and "recommendations" only on what is visible in this single file's diff. Do not assume context about the rest of the PR.
 
+Type and Severity are two DIFFERENT fields. Do not confuse them.
+
+"type" answers "what kind of issue is this?" and must be exactly one of:
+    quality | security | performance | style | documentation
+
+"severity" answers "how bad is it?" and must be exactly one of:
+    info | warning | error | critical
+
+"error" and "critical" are SEVERITIES, not types. A bug, a crash or broken error
+handling is type "quality" with severity "error" — never type "error".
+
 Severity Guidelines
     info: Minor improvement opportunity.
     warning: Moderate issue that should be addressed.
