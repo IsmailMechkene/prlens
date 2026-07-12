@@ -49,6 +49,24 @@
   white-space: nowrap;
 }
 
+.rowSkeleton {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: calc(15px * var(--dsc)) 18px;
+  border-top: 1px solid var(--border-muted);
+}
+.rowSkeleton:first-child {
+  border-top: none;
+}
+.rowSkeletonMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
 .empty {
   padding: 28px 18px;
   text-align: center;

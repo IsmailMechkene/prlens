@@ -69,6 +69,25 @@
   text-decoration: underline;
 }
 
+.disconnect {
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+.disconnect:hover:not(:disabled) {
+  color: var(--danger);
+  text-decoration: underline;
+}
+.disconnect:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .enable {
   display: inline-flex;
   align-items: center;

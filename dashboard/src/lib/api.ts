@@ -17,6 +17,7 @@ import {
 } from './mockData'
 import type {
   DashboardStats,
+  DisconnectResult,
   GitHubRepo,
   Repo,
   RepoDetail,
@@ -327,6 +328,26 @@ export const api = {
     return request<Repo>(`/repos/${encodeURIComponent(name)}/enable`, {
       method: 'POST',
       body: JSON.stringify({ owner, visibility }),
+    })
+  },
+
+  /**
+   * Remove PRLens from a repo entirely: its installation, settings and review
+   * history, plus the repo's attachment to the PRLens GitHub App. Destructive and
+   * not undoable — see `githubRemoved` on the result for the GitHub half, which is
+   * best-effort.
+   */
+  disconnectRepo(name: string): Promise<DisconnectResult> {
+    if (USE_MOCKS) {
+      const repo = mockRepos.find((r) => r.name === name)
+      if (repo) {
+        repo.connected = false
+        repo.active = false
+      }
+      return mock({ name, githubRemoved: true })
+    }
+    return request<DisconnectResult>(`/repos/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
     })
   },
 }

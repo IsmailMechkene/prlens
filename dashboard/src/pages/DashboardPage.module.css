@@ -11,6 +11,25 @@
   margin-bottom: 30px;
 }
 
+.statSkeleton {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  min-height: 92px;
+}
+
+.rowSkeleton {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: calc(14px * var(--dsc)) 18px;
+  border-bottom: 1px solid var(--border-muted);
+}
+.rowSkeleton:last-child {
+  border-bottom: none;
+}
+
 .tableHead {
   display: flex;
   align-items: center;

@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { Icon } from '../ui/Icon'
 import { Logo } from '../ui/Logo'
+import { Skeleton } from '../ui/Skeleton'
 import { ThemeControls } from './ThemeControls'
 import styles from './Sidebar.module.css'
 
@@ -55,12 +56,19 @@ export function Sidebar() {
             />
           </NavLink>
         ))}
-        {repos.loading && <div className={styles.reposHint}>Loading…</div>}
+        {repos.loading &&
+          repos.data === undefined &&
+          [0, 1, 2, 3].map((i) => (
+            <div key={i} className={styles.repoSkeleton}>
+              <Skeleton width={14} height={14} radius={3} />
+              <Skeleton width={`${58 + i * 9}%`} height={12} />
+            </div>
+          ))}
         {repos.error && <div className={styles.reposHint}>Couldn’t load repos</div>}
       </div>
 
       <div className={styles.footer}>
-        {themeOpen && <ThemeControls />}
+        {themeOpen && <ThemeControls onClose={() => setThemeOpen(false)} />}
         <div className={styles.user}>
           <div className={styles.avatar}>{user.data?.initials ?? '··'}</div>
           <div className={styles.userMeta}>

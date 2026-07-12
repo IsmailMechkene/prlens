@@ -1,3 +1,7 @@
+.skeletonHost {
+  display: contents;
+}
+
 .center {
   display: flex;
   align-items: center;

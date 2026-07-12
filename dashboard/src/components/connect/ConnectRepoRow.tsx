@@ -1,31 +1,44 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
+import { confirmDisconnect, reportDisconnect } from '../../lib/disconnect'
 import type { GitHubRepo } from '../../lib/types'
 import { Icon } from '../ui/Icon'
 import styles from './ConnectRepoRow.module.css'
 
 interface ConnectRepoRowProps {
   repo: GitHubRepo
-  onEnabled: () => void
+  /** Re-fetch the list: the row's connected state has changed. */
+  onChanged: () => void
 }
 
-export function ConnectRepoRow({ repo, onEnabled }: ConnectRepoRowProps) {
+export function ConnectRepoRow({ repo, onChanged }: ConnectRepoRowProps) {
   const navigate = useNavigate()
-  const [enabling, setEnabling] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   // repo.name is the GitHub full_name ("acme/api-gateway"), so it must be encoded
   // to stay a single path segment under the /repos/:name route.
   const detailPath = `/repos/${encodeURIComponent(repo.name)}`
 
   const enable = async () => {
-    setEnabling(true)
+    setBusy(true)
     try {
       await api.enableRepo(repo.name, repo.owner, repo.visibility)
-      onEnabled()
+      onChanged()
       navigate(detailPath)
     } finally {
-      setEnabling(false)
+      setBusy(false)
+    }
+  }
+
+  const disconnect = async () => {
+    if (!confirmDisconnect(repo.name)) return
+    setBusy(true)
+    try {
+      reportDisconnect(repo.name, await api.disconnectRepo(repo.name))
+      onChanged()
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -52,10 +65,18 @@ export function ConnectRepoRow({ repo, onEnabled }: ConnectRepoRowProps) {
           >
             Settings
           </button>
+          <button
+            type="button"
+            className={styles.disconnect}
+            onClick={disconnect}
+            disabled={busy}
+          >
+            {busy ? 'Removing…' : 'Disconnect'}
+          </button>
         </div>
       ) : (
-        <button type="button" className={styles.enable} onClick={enable} disabled={enabling}>
-          <Icon name="zap" size={14} /> {enabling ? 'Enabling…' : 'Enable PRLens'}
+        <button type="button" className={styles.enable} onClick={enable} disabled={busy}>
+          <Icon name="zap" size={14} /> {busy ? 'Enabling…' : 'Enable PRLens'}
         </button>
       )}
     </div>

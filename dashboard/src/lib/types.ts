@@ -55,6 +55,16 @@ export interface Repo {
  */
 export type GitHubRepo = Omit<Repo, 'active'>
 
+/**
+ * Outcome of removing PRLens from a repo. `githubRemoved` is whether the repo was
+ * also detached from the PRLens GitHub App — if it is false the dashboard rows are
+ * gone but GitHub may still deliver pull requests for review.
+ */
+export interface DisconnectResult {
+  name: string
+  githubRemoved: boolean
+}
+
 /** A single PR review result. */
 export interface Review {
   /** Repo short name this review belongs to. */

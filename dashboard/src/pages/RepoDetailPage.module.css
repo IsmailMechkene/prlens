@@ -83,6 +83,30 @@
   color: var(--fg-default);
   border-color: #8b949e;
 }
+.disconnect {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  padding: 8px 13px;
+  border-radius: var(--rad-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.disconnect:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.disconnect:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .toggleBox {
   display: inline-flex;
   align-items: center;
@@ -195,4 +219,31 @@
   .container {
     padding: 24px 18px 40px;
   }
+}
+
+/* Loading placeholders — mirror the header + chart layout above so the page
+   doesn't reflow when the data lands. */
+.headSkeleton {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 26px;
+}
+.headSkeletonText {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.reviewSkeleton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: calc(14px * var(--dsc)) 18px;
+  border-bottom: 1px solid var(--border-muted);
+}
+.reviewSkeleton:last-child {
+  border-bottom: none;
 }

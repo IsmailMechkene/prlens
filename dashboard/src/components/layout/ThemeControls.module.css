@@ -1,18 +1,51 @@
+/* Floats above the sidebar footer rather than being squeezed into the 260px
+   column: at 236px wide the three density options had ~70px each and read as a
+   wall of text. As a popover it can be wider than its parent. */
 .panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 12px;
+  z-index: 30;
+  width: 284px;
+  max-width: calc(100vw - 24px);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px;
-  margin-bottom: 10px;
+  gap: 18px;
+  padding: 16px;
   border: 1px solid var(--border-default);
-  border-radius: var(--rad-sm);
-  background: var(--bg-inset);
+  border-radius: var(--rad);
+  background: var(--bg-surface);
+  box-shadow: 0 14px 36px rgba(1, 4, 9, 0.5);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+.close {
+  display: inline-flex;
+  padding: 3px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-subtle);
+  cursor: pointer;
+}
+.close:hover {
+  color: var(--fg-default);
+  background: var(--bg-elevated);
 }
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 9px;
 }
 .label {
   font-size: 11px;
@@ -24,11 +57,11 @@
 
 .swatches {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 .swatch {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
@@ -37,28 +70,33 @@
 }
 .swatch[data-active='true'] {
   box-shadow:
-    0 0 0 2px var(--bg-inset),
+    0 0 0 2px var(--bg-surface),
     0 0 0 4px currentColor;
 }
 
 .segmented {
   display: flex;
   gap: 4px;
-  background: var(--bg-elevated);
+  background: var(--bg-inset);
   border-radius: var(--rad-sm);
   padding: 3px;
 }
 .segment {
   flex: 1;
+  min-width: 0;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--fg-muted);
   background: transparent;
   border: none;
   border-radius: calc(var(--rad-sm) - 2px);
-  padding: 5px 0;
+  padding: 7px 4px;
   cursor: pointer;
+  white-space: nowrap;
+}
+.segment:hover:not([data-active='true']) {
+  color: var(--fg-default);
 }
 .segment[data-active='true'] {
   background: var(--bg-surface);

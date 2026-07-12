@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
+import { confirmDisconnect, reportDisconnect } from '../lib/disconnect'
 import { useAsync } from '../lib/useAsync'
 import type { AsyncState } from '../lib/useAsync'
 import { issueColor } from '../lib/reviewStyles'
 import type { RepoDetail, Review } from '../lib/types'
 import { Card } from '../components/ui/Card'
 import { Icon } from '../components/ui/Icon'
+import { Skeleton } from '../components/ui/Skeleton'
 import { Toggle } from '../components/ui/Toggle'
 import { GitHubIcon } from '../components/ui/GitHubIcon'
 import { AsyncBoundary } from '../components/ui/AsyncBoundary'
@@ -15,6 +17,37 @@ import { IssuesDonut } from '../components/repo/IssuesDonut'
 import { RecentReviews } from '../components/repo/RecentReviews'
 import { ReviewSettings } from '../components/repo/ReviewSettings'
 import styles from './RepoDetailPage.module.css'
+
+const detailSkeleton = (
+  <>
+    <div className={styles.headSkeleton}>
+      <div className={styles.headSkeletonText}>
+        <Skeleton width={260} height={22} />
+        <Skeleton width={380} height={13} />
+      </div>
+      <Skeleton width={150} height={32} radius={8} />
+    </div>
+    <div className={styles.charts}>
+      {[0, 1].map((i) => (
+        <Card key={i} className={styles.chartCard}>
+          <Skeleton width={150} height={14} />
+          <Skeleton height={132} radius={10} style={{ marginTop: 20 }} />
+        </Card>
+      ))}
+    </div>
+  </>
+)
+
+const reviewsSkeleton = (
+  <div>
+    {[0, 1, 2, 3].map((i) => (
+      <div key={i} className={styles.reviewSkeleton}>
+        <Skeleton width="46%" height={13} />
+        <Skeleton width={44} height={20} radius={6} />
+      </div>
+    ))}
+  </div>
+)
 
 /** Quality is up, down, or flat since the start of the window. */
 function deltaArrow(delta: number): string {
@@ -44,7 +77,7 @@ export function RepoDetailPage() {
         <span className={styles.crumbCurrent}>{name}</span>
       </div>
 
-      <AsyncBoundary state={repo} minHeight={400}>
+      <AsyncBoundary state={repo} minHeight={400} skeleton={detailSkeleton}>
         {/*
           Keyed by repo: navigating from one repo to another keeps this subtree
           mounted (useAsync holds the previous data while refetching), so without a
@@ -65,7 +98,9 @@ function RepoDetailContent({
   detail: RepoDetail
   reviews: AsyncState<Review[]>
 }) {
+  const navigate = useNavigate()
   const [active, setActive] = useState(detail.active)
+  const [disconnecting, setDisconnecting] = useState(false)
   const totalIssues = detail.issues.reduce((s, i) => s + i.value, 0)
 
   // The backend sends GitHub's full_name ("acme/api-gateway") as `name`, so
@@ -79,6 +114,19 @@ function RepoDetailContent({
       await api.setRepoActive(detail.name, next)
     } catch {
       setActive(!next) // revert on failure
+    }
+  }
+
+  const onDisconnect = async () => {
+    if (!confirmDisconnect(detail.name)) return
+    setDisconnecting(true)
+    try {
+      reportDisconnect(detail.name, await api.disconnectRepo(detail.name))
+      // The repo no longer exists as far as the app is concerned, so this page
+      // cannot stay: `replace` keeps Back from returning to a 404.
+      navigate('/connect', { replace: true })
+    } catch {
+      setDisconnecting(false)
     }
   }
 
@@ -102,6 +150,15 @@ function RepoDetailContent({
           >
             <GitHubIcon size={15} /> Open on GitHub
           </a>
+          <button
+            type="button"
+            className={styles.disconnect}
+            onClick={onDisconnect}
+            disabled={disconnecting}
+          >
+            <Icon name="trash-2" size={14} />
+            {disconnecting ? 'Removing…' : 'Disconnect'}
+          </button>
           <div className={styles.toggleBox}>
             <span
               className={styles.toggleLabel}
@@ -159,7 +216,7 @@ function RepoDetailContent({
           <div className={styles.panelHead}>
             <h3 className={styles.chartTitle}>Recent PR reviews</h3>
           </div>
-          <AsyncBoundary state={reviews} minHeight={180}>
+          <AsyncBoundary state={reviews} minHeight={180} skeleton={reviewsSkeleton}>
             {(data) => <RecentReviews reviews={data} />}
           </AsyncBoundary>
         </Card>

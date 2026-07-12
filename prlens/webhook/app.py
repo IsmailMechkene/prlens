@@ -118,6 +118,10 @@ SCORE_TREND_DAYS = 30
 GITHUB_REPOS_PER_PAGE = 100
 GITHUB_REPO_PAGE_LIMIT = 20
 
+# The GitHub App PRLens is installed as. Used to detach a repo from the app when it
+# is disconnected; without it, a disconnect can only clear the dashboard's own rows.
+GITHUB_APP_ID = os.getenv("GITHUB_APP_ID")
+
 # Ordering for "which severity is stricter", used when several installations of the
 # same repo have to be reconciled into one configuration (see _merge_settings).
 SEVERITY_RANK: dict[Severity, int] = {
@@ -948,6 +952,81 @@ async def get_github_repos(
         for r in github_repos
         if isinstance(r, dict)  # guard against error responses
     ]
+
+
+async def _detach_repo_from_github_app(repo_name: str, token: str | None) -> bool:
+    """Remove one repo from this GitHub App's installation. Best effort.
+
+    Deleting the Installation row stops the dashboard from showing the repo, but
+    GitHub keeps delivering webhooks for it — and a delivery for a repo PRLens has
+    no row for still gets reviewed, with the file settings. So "disconnect" only
+    really disconnects if the repo is detached on GitHub's side too.
+
+    Returns whether GitHub confirmed the removal. A failure here must not fail the
+    disconnect: the row still goes, and the caller reports what did not happen.
+    """
+    if not token or not GITHUB_APP_ID:
+        return False
+
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+    try:
+        async with httpx.AsyncClient() as client:
+            repo = await client.get(
+                f"https://api.github.com/repos/{repo_name}", headers=headers
+            )
+            if repo.status_code != 200:
+                return False
+            repo_id = repo.json().get("id")
+
+            installations = await client.get(
+                "https://api.github.com/user/installations", headers=headers
+            )
+            if installations.status_code != 200:
+                return False
+
+            ours = next(
+                (
+                    inst
+                    for inst in installations.json().get("installations", [])
+                    if str(inst.get("app_id")) == str(GITHUB_APP_ID)
+                ),
+                None,
+            )
+            if ours is None or repo_id is None:
+                return False
+
+            removed = await client.delete(
+                f"https://api.github.com/user/installations/{ours['id']}/repositories/{repo_id}",
+                headers=headers,
+            )
+            return removed.status_code == 204
+    except Exception:
+        logger.exception("Could not detach %s from the GitHub App installation", repo_name)
+        return False
+
+
+@app.delete("/api/repos/{name:path}")
+async def disconnect_repo(
+    name: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove PRLens from a repo: its installation, settings and review history.
+
+    The GitHub side is detached first — if that is going to fail, it fails while the
+    row is still there, and the caller is told. The row itself is then deleted, and
+    the ``cascade`` on Installation.reviews takes the reviews and their comments
+    with it.
+    """
+    installation = get_installation(db, current_user, name)
+
+    github_removed = await _detach_repo_from_github_app(name, current_user.github_token)
+
+    db.delete(installation)
+    db.commit()
+
+    return {"name": name, "githubRemoved": github_removed}
 
 
 # Registered last on purpose: its greedy `:path` name would otherwise capture the
