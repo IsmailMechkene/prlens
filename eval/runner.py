@@ -1,8 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from prlens.llm.analyzer import Analyzer
 from prlens.models.pr import FileChange, FileChangeStatus
 from prlens.models.review import ReviewType, Severity
+
 
 @dataclass
 class EvalCase:

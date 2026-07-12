@@ -19,10 +19,12 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
   const [excludedInput, setExcludedInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [failed, setFailed] = useState(false)
 
   const patch = (next: Partial<RepoSettings>) => {
     setSettings((prev) => ({ ...prev, ...next }))
     setSaved(false)
+    setFailed(false)
   }
 
   const toggleLang = (lang: string) =>
@@ -41,9 +43,14 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
 
   const save = async () => {
     setSaving(true)
+    setFailed(false)
     try {
       await api.updateRepoSettings(repo, settings)
       setSaved(true)
+    } catch {
+      // A rejected save used to leave the button back on "Save changes" with no
+      // other sign, so the user believed a change had been stored that had not.
+      setFailed(true)
     } finally {
       setSaving(false)
     }
@@ -200,7 +207,13 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
           <Icon name={saved ? 'check' : 'save'} size={15} />
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
         </Button>
-        <span className={styles.saveHint}>Applies to all new pull requests.</span>
+        {failed ? (
+          <span className={styles.saveHint} style={{ color: 'var(--danger)' }} role="alert">
+            <Icon name="circle-alert" size={13} /> Couldn’t save — nothing was changed. Try again.
+          </span>
+        ) : (
+          <span className={styles.saveHint}>Applies to all new pull requests.</span>
+        )}
       </div>
     </div>
   )

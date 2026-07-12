@@ -1,7 +1,8 @@
+import base64
 import json
+import logging
 import os
 import tempfile
-import base64
 
 from prlens.config.settings import load_settings
 from prlens.core.agent import Agent
@@ -11,7 +12,6 @@ from prlens.github.pr_publisher import PRPublisher
 from prlens.llm.analyzer import Analyzer
 from prlens.llm.client import LLMClient
 
-import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 

@@ -16,6 +16,19 @@ import { RecentReviews } from '../components/repo/RecentReviews'
 import { ReviewSettings } from '../components/repo/ReviewSettings'
 import styles from './RepoDetailPage.module.css'
 
+/** Quality is up, down, or flat since the start of the window. */
+function deltaArrow(delta: number): string {
+  if (delta > 0) return '▲'
+  if (delta < 0) return '▼'
+  return '–'
+}
+
+function deltaColor(delta: number): string {
+  if (delta > 0) return 'var(--success)'
+  if (delta < 0) return 'var(--danger)'
+  return 'var(--fg-muted)'
+}
+
 export function RepoDetailPage() {
   const { name = '' } = useParams()
   const repo = useAsync(() => api.getRepo(name), [name])
@@ -110,8 +123,13 @@ function RepoDetailContent({
           </div>
           <div className={styles.scoreRow}>
             <span className={styles.score}>{detail.currentScore}</span>
-            <span className={styles.scoreDelta}>
-              ▲ {detail.scoreDelta} pts
+            {/* The arrow used to be a hard-coded ▲, so a repo whose quality had
+                fallen still read "▲ -4 pts". */}
+            <span
+              className={styles.scoreDelta}
+              style={{ color: deltaColor(detail.scoreDelta) }}
+            >
+              {deltaArrow(detail.scoreDelta)} {Math.abs(detail.scoreDelta)} pts
             </span>
           </div>
           <QualityTrendChart data={detail.scoreTrend} />

@@ -2,10 +2,17 @@
 
 Logic-bug audit of the dashboard backend (`prlens/webhook/app.py`, plus
 `auth/github_oauth.py` which it calls) and the frontend (`dashboard/src/`).
-Fixes only — no features, no styling, no refactors of working code.
 
-**15 bugs found and fixed.** Verification: `ruff` clean on every changed Python
-file, `pytest` 69/69 passing, `tsc --noEmit` and `eslint` clean.
+**15 bugs found and fixed** in the first pass, then **7 follow-ups** that closed
+the limitations that pass had left open (part 2 below).
+
+Verification: `ruff` passes repo-wide, `pytest` 69/69, `tsc --noEmit` and `eslint`
+clean. The backend fixes were also driven end-to-end against a throwaway SQLite
+database rather than only type-checked — see the notes under each item.
+
+---
+
+# Part 1 — the audit
 
 ---
 
@@ -292,36 +299,163 @@ bearer token and `Content-Type`. Latent today (no caller passes headers), a
   `GET /api/repos/{name:path}`, which is last in the file. Sub-paths are not
   swallowed. `/api/repos` (list) and `/api/github/repos` are unaffected.
 - **Engine lifecycle in `_repo_config` / `_persist_review`.** Both dispose their
-  engine in a `finally`, on every path including exceptions. No leak.
+  engine in a `finally`, on every path including exceptions. No leak. (They now
+  share one pooled engine instead — see #16.)
 - **`run_agent` with `DATABASE_URL` unset.** `_repo_config` returns `None` and the
   agent falls back to `load_settings()`; `_persist_review` logs and returns. Correct.
 
 ---
 
+# Part 2 — closing the limitations
+
+Part 1 left eight things open. Seven are now fixed; the eighth (`SESSION_SECRET`)
+is deployment configuration, and is confirmed set on Railway.
+
+---
+
+### 16. One pooled engine for background tasks, not one per webhook event
+
+**File:** `prlens/webhook/app.py` (`_background_session_factory`)
+
+`_repo_config` and `_persist_review` each built a `create_engine(...)` and threw it
+away again. An engine owns a *connection pool*, so every webhook event paid a fresh
+TCP + TLS handshake to Postgres — twice — and discarded the pool immediately after.
+
+**Fix:** one lazily-built, process-wide engine behind a lock, reused by both
+functions, with `pool_pre_ping=True` so a connection the database dropped while the
+pool sat idle between events is detected and replaced rather than handed out dead.
+It rebuilds if `DATABASE_URL` changes, which in practice only happens under test.
+`DATABASE_URL` unset still returns `None`, so the file-settings fallback is
+untouched. Verified: two calls return the same factory object.
+
+---
+
+### 17. Shared repos: strictest-wins settings
+
+**File:** `prlens/webhook/app.py` (`_merge_settings`)
+
+Fix #7 made the choice deterministic (lowest-id active installation) but still
+picked *one* user's settings and discarded everyone else's. Only one review is
+posted to the pull request, so the configurations have to be reconciled — and
+reconciling towards the **strictest** option is the only rule under which no user's
+settings can be silently weakened by somebody else's:
+
+| Field | Rule | Why |
+|---|---|---|
+| `min_severity` | lowest | a comment anyone wants to see survives |
+| `target_languages` | union (empty ⇒ empty) | a language anyone reviews is reviewed; an empty list means "no filter", which is the strictest value, so it absorbs the rest |
+| `excluded_files` | intersection | a file is skipped only if *everyone* skips it |
+| `approve_threshold` | highest | hardest to approve |
+| `changes_threshold` | highest | quickest to request changes |
+| `reviewers_mapping` | merged, earliest installation wins a conflict | someone is always assigned |
+
+Paused installations take no part. Verified against three installations (one lax,
+one strict, one paused-but-strictest): the paused one is ignored, and every field
+resolves as tabulated above.
+
+---
+
+### 18. `GET /api/github/repos` is now paginated
+
+**File:** `prlens/webhook/app.py` (`get_github_repos`)
+
+`per_page=100` with no `page` parameter: repositories beyond the hundredth simply
+did not exist as far as the Connect page was concerned, with nothing in the UI to
+suggest the list was truncated.
+
+**Fix:** walk pages until GitHub returns a short one, with a 20-page runaway guard
+(2000 repos) that logs if it is ever hit. Verified against a stubbed GitHub
+returning 100 + 100 + 43: 243 repos returned, exactly 3 pages requested, and a
+401 still surfaces as a 401 rather than an empty list.
+
+---
+
+### 19. A GitHub rename no longer breaks sign-in
+
+**Files:** `database/models.py`, `database/connection.py` (`_relax_handle_uniqueness`), `prlens/webhook/app.py` (`github_callback`)
+
+`users.handle` was `unique=True`. A handle is a *GitHub login*: it can be renamed,
+and the old one can then be claimed by somebody else. Two rows converging on one
+handle raised an `IntegrityError` — a 500 on an otherwise perfectly valid login,
+and unfixable by the user. `github_id` is the real identity, and it is already
+unique.
+
+**Fix:** `handle` is indexed but no longer unique. `create_all()` never alters an
+existing table, so `init_db()` runs an idempotent `_relax_handle_uniqueness()` at
+boot that drops the legacy unique index (and, on Postgres, the constraint form)
+and recreates a plain one. It is wrapped in `try/except` so a permissions problem
+degrades to a log line rather than a failed boot. Verified against a database
+seeded with the *old* unique index: after boot the index is plain, and two users
+can hold `@alice`.
+
+Also fixed here: an existing user's `name`, `handle`, `initials` and `avatar_url`
+were captured at first sign-in and never updated. They are now refreshed on every
+login, keyed on `github_id`.
+
+---
+
+### 20. `scoreDelta` renders the direction it actually has
+
+**File:** `dashboard/src/pages/RepoDetailPage.tsx`
+
+The arrow was a hard-coded `▲`, so a repo whose quality had *fallen* displayed
+"▲ -4 pts" — in green.
+
+**Fix:** `▲` / `▼` / `–` on the sign, `Math.abs()` on the number, and the colour
+follows (`--success` / `--danger` / `--fg-muted`).
+
+---
+
+### 21. A failed settings save says so
+
+**File:** `dashboard/src/components/repo/ReviewSettings.tsx`
+
+`save()` had no `catch`. A rejected `PUT` left the button back on "Save changes"
+with no other sign, so the user walked away believing a change had been stored
+that had not — and the form still showed the values they thought they had saved.
+
+**Fix:** a `failed` state replaces the hint line with "Couldn't save — nothing was
+changed. Try again." (`role="alert"`, existing `saveHint` class, `--danger`). A
+401 still re-authenticates via fix #4; this covers every other failure.
+
+---
+
+### 22. `ruff` passes repo-wide
+
+Baseline was 29 findings; the audit's own files were always clean, but `tests/`,
+`eval/`, `main.py` and `database/connection.py` carried import-ordering and
+unused-import noise. All fixed (`ruff check --fix`), plus one manual `== True` →
+`is True` in `tests/llm/test_analyzer.py`.
+
+The test edits are import-ordering only — the removed `from tests.conftest import
+...` lines were redundant re-imports of fixtures pytest already resolves through
+`conftest.py`. All 69 tests still pass.
+
+---
+
 ## Remaining known limitations
 
-- **Set `SESSION_SECRET` in production.** With fix #1 an unset secret means a
-  random per-process key, so sessions break across restarts *and across replicas*.
-  That is deliberate (a forgeable constant is worse), but it is a misconfiguration
-  the app can only degrade around, not repair.
-- **`GET /api/github/repos` is not paginated** (`per_page=100`). Users with more
-  than 100 repos cannot see the rest on the Connect page.
-- **Shared repos have no settings arbitration.** With fix #7 the settings used are
-  those of the lowest-id *active* installation — first connector wins. Two users
-  with different settings on the same repo is still an unresolved product question.
-- **A fresh engine and connection pool per background task.** Correct (and disposed),
-  but a new pool per webhook event is wasteful. Fixing it means a module-level
-  background engine — a refactor, out of scope here.
-- **`scoreDelta` renders a hard-coded ▲** even when negative ("▲ -4 pts"). It is a
-  display bug, and the brief excludes UI changes.
-- **A failed settings save has no error UI** — the button just returns to
-  "Save changes". A 401 now re-authenticates (fix #4); other failures are silent.
-- **GitHub handle collisions.** `users.handle` is unique; a user who renames
-  themselves on GitHub to a handle already in the table hits an `IntegrityError`
-  on login. Also, an existing user's `name`/`handle`/`avatar_url` are never
-  refreshed after the first sign-in.
-- **Pre-existing `ruff` findings (28) are untouched.** They sit in `tests/` (which
-  the brief forbids modifying), `eval/`, `main.py` and `database/connection.py` —
-  all outside the reviewed scope, and all import-ordering / unused-import noise
-  rather than logic. Every file this audit changed is `ruff`-clean; the baseline
-  was 29, so the count went down by one (`auth/github_oauth.py`).
+- **`SESSION_SECRET` must be set, and identical across replicas.** Unset, the app
+  falls back to a random per-process key (fix #1) and warns at boot: sessions then
+  break at the next restart and never work across replicas. That is deliberate — a
+  published constant is worse — but it is a misconfiguration the app can only
+  degrade around, not repair. **Confirmed set on Railway.** It is now documented in
+  `.env.example`, along with the other dashboard variables that were missing from it
+  (`DATABASE_URL`, `GITHUB_WEBHOOK_SECRET`, the OAuth pair, `FRONTEND_URL`).
+- **Strictest-wins is not what everyone will want.** A user who connects a repo
+  someone else has already connected inherits a stricter configuration than the one
+  they set, and the dashboard does not tell them that their settings were merged
+  rather than applied. Surfacing "these settings are shared with N other users" is
+  a UI change, so it is out of scope here.
+- **`_relax_handle_uniqueness` runs on every boot.** It is idempotent and cheap, but
+  it is a migration living in application startup because the project has no
+  migration tool. If Alembic is ever added, that is where this belongs.
+- **The 20-page cap on `/api/github/repos`** (2000 repos) is a runaway guard, not a
+  real limit — but a user above it would still silently see a truncated list. It
+  logs when hit.
+- **The dashboard fetches `/api/user` twice on load** (once in `RequireAuth`, once
+  in `Sidebar`). Harmless — both are cheap and neither races — but redundant.
+- **No test coverage for the new backend paths.** `_merge_settings`, the pagination
+  loop and the handle migration were each verified end-to-end against a temporary
+  SQLite database during this work, but that was throwaway scripting, not committed
+  tests. The existing suite (69 tests) does not exercise them.

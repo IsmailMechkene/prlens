@@ -1,5 +1,7 @@
-from prlens.core.agent import Agent
 from unittest.mock import MagicMock
+
+from prlens.core.agent import Agent
+
 
 def test_run_executes_full_pipeline(settings):
     mock_fetcher = MagicMock()

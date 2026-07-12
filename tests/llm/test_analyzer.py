@@ -1,6 +1,5 @@
 from prlens.llm.analyzer import Analyzer
 from prlens.models.review import ReviewResult
-from tests.conftest import mock_llm_client, settings, sample_file_change
 
 
 def test_analyze_pr_returns_review_result(mock_llm_client, sample_pr, settings):
@@ -12,7 +11,7 @@ def test_analyze_pr_returns_review_result(mock_llm_client, sample_pr, settings):
 def test_analyze_pr_detects_critical_issues(mock_llm_client, sample_pr, settings):
     analyzer = Analyzer(mock_llm_client)
     result = analyzer.analyze_pr(sample_pr, settings)
-    assert result.has_critical_issues == True
+    assert result.has_critical_issues is True
 
 
 def test_analyze_pr_calculates_score(mock_llm_client, sample_pr, settings):

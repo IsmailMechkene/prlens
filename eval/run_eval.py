@@ -1,9 +1,9 @@
 from eval.cases import ALL_CASES
+from eval.metrics import print_report
 from eval.runner import run_eval_case
-from eval.metrics import calculate_metrics, print_report
-from prlens.llm.client import LLMClient
-from prlens.llm.analyzer import Analyzer
 from prlens.config.settings import load_settings
+from prlens.llm.analyzer import Analyzer
+from prlens.llm.client import LLMClient
 
 if __name__ == "__main__":
     settings = load_settings()

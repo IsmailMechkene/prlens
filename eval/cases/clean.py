@@ -1,6 +1,5 @@
 from eval.runner import EvalCase
-from prlens.models.review import ReviewType, Severity
-
+from prlens.models.review import Severity
 
 CLEAN_CASES = [
     EvalCase(

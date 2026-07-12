@@ -4,7 +4,7 @@ from github import GithubException
 
 from prlens.config.settings import Settings
 from prlens.github.pr_publisher import PRPublisher
-from prlens.models.review import ReviewResult, ReviewType, ReviewComment, Severity
+from prlens.models.review import ReviewComment, ReviewResult, ReviewType, Severity
 
 
 def test_apply_labels_approved(mock_github_client, mock_pull_request, settings):

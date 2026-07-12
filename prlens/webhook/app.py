@@ -113,6 +113,50 @@ ISSUE_CATEGORIES: dict[ReviewType, str] = {
 
 SCORE_TREND_DAYS = 30
 
+# GitHub caps per_page at 100, so the Connect page walks pages. The page limit is
+# only a runaway guard — 20 pages is 2000 repos.
+GITHUB_REPOS_PER_PAGE = 100
+GITHUB_REPO_PAGE_LIMIT = 20
+
+# Ordering for "which severity is stricter", used when several installations of the
+# same repo have to be reconciled into one configuration (see _merge_settings).
+SEVERITY_RANK: dict[Severity, int] = {
+    Severity.INFO: 0,
+    Severity.WARNING: 1,
+    Severity.ERROR: 2,
+    Severity.CRITICAL: 3,
+}
+
+# Background tasks run on a worker thread, so they cannot use the request-scoped
+# session from ``get_db``. They share this lazily-built engine instead of each
+# building a throwaway one: an engine owns a connection pool, and creating and
+# disposing a pool per webhook event means a fresh TCP + TLS handshake to Postgres
+# every time. ``pool_pre_ping`` covers connections the database dropped while the
+# pool sat idle between events.
+_engine_lock = threading.Lock()
+_background_engine = None
+_background_engine_url: str | None = None
+_background_sessionmaker: sessionmaker | None = None
+
+
+def _background_session_factory() -> sessionmaker | None:
+    """Session factory for background threads, or None when there is no database."""
+    global _background_engine, _background_engine_url, _background_sessionmaker
+
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return None
+
+    with _engine_lock:
+        # Rebuilt if DATABASE_URL changes, which in practice only happens in tests.
+        if _background_sessionmaker is None or _background_engine_url != db_url:
+            if _background_engine is not None:
+                _background_engine.dispose()
+            _background_engine = create_engine(db_url, pool_pre_ping=True)
+            _background_sessionmaker = sessionmaker(bind=_background_engine)
+            _background_engine_url = db_url
+        return _background_sessionmaker
+
 
 class ReviewerMapEntry(BaseModel):
     key: str
@@ -191,6 +235,59 @@ def _settings_from_installation(installation: Installation, defaults: Settings) 
     )
 
 
+def _merge_settings(installations: list[Installation], defaults: Settings) -> Settings:
+    """Reconcile several installations of one repo into the settings to review with.
+
+    The unique key is (user_id, repo_name), so the same repo can be connected by
+    more than one user — but only one review is posted to the pull request, so the
+    configurations have to become one. Every field resolves towards the *strictest*
+    option, which is the only rule under which no user's settings can be silently
+    weakened by somebody else's:
+
+    * ``min_severity`` — the lowest, so a comment anyone wants to see survives.
+    * ``target_languages`` — the union. An empty list means "no language filter",
+      i.e. review everything, so it is the strictest value and absorbs the rest.
+    * ``excluded_files`` — the intersection: a file is only skipped if *everyone*
+      skips it.
+    * ``approve_threshold`` / ``changes_threshold`` — the highest, so the repo is
+      the hardest to approve and the quickest to have changes requested.
+    * ``reviewers_mapping`` — merged; the earliest installation wins a review type
+      that two of them map to different reviewers.
+    """
+    configs = [_settings_from_installation(inst, defaults) for inst in installations]
+
+    languages: list[SupportedLanguages] = []
+    if all(config.target_languages for config in configs):
+        for config in configs:
+            for language in config.target_languages:
+                if language not in languages:
+                    languages.append(language)
+
+    excluded = [
+        pattern
+        for pattern in configs[0].excluded_files
+        if all(pattern in config.excluded_files for config in configs[1:])
+    ]
+
+    reviewers: dict[ReviewType, str] = {}
+    for config in reversed(configs):  # earliest installation applied last, so it wins
+        reviewers.update(config.reviewers_mapping)
+
+    return Settings(
+        llm_model=defaults.llm_model,
+        large_pr_threshold=defaults.large_pr_threshold,
+        min_severity=min(
+            (config.min_severity for config in configs),
+            key=lambda severity: SEVERITY_RANK[severity],
+        ),
+        target_languages=languages,
+        excluded_files=excluded,
+        reviewers_mapping=reviewers,
+        approve_threshold=max(config.approve_threshold for config in configs),
+        changes_threshold=max(config.changes_threshold for config in configs),
+    )
+
+
 class _RepoConfig(NamedTuple):
     settings: Settings
     active: bool
@@ -202,18 +299,13 @@ def _repo_config(repo_name: str) -> _RepoConfig | None:
     Returns None when there is no database configured, no installation row for the
     repo, or the lookup fails. A database problem must not stop a review, so the
     caller degrades to ``load_settings()`` instead of raising.
-
-    Runs on the background-task thread, so it owns its engine and session — see
-    ``_persist_review`` for the same reasoning.
     """
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
+    session_factory = _background_session_factory()
+    if session_factory is None:
         return None
 
     try:
-        engine = create_engine(db_url)
-        local_session = sessionmaker(bind=engine)
-        db = local_session()
+        db = session_factory()
         try:
             installations = db.query(Installation).filter(
                 Installation.repo_name == repo_name
@@ -222,21 +314,19 @@ def _repo_config(repo_name: str) -> _RepoConfig | None:
             if not installations:
                 return None
 
-            # The unique key is (user_id, repo_name), so the same repo can be
-            # connected by several users. Reviewing stays on as long as one of them
-            # has it enabled, and that installation's settings are the ones used —
-            # taking an arbitrary .first() would let one paused installation
-            # silently disable reviewing for everybody else on the repo.
-            active = next((inst for inst in installations if inst.active), None)
-            chosen = active if active is not None else installations[0]
+            # Reviewing stays on as long as one user has it enabled: an arbitrary
+            # .first() would let a single paused installation silently disable
+            # reviewing for everybody else on the repo.
+            active = [inst for inst in installations if inst.active]
+            if not active:
+                return _RepoConfig(
+                    _settings_from_installation(installations[0], load_settings()),
+                    False,
+                )
 
-            return _RepoConfig(
-                _settings_from_installation(chosen, load_settings()),
-                active is not None,
-            )
+            return _RepoConfig(_merge_settings(active, load_settings()), True)
         finally:
             db.close()
-            engine.dispose()
     except Exception:
         logger.exception("Could not load settings for %s; using file settings", repo_name)
         return None
@@ -255,17 +345,14 @@ def _persist_review(repo_name: str, pr: PR, result: ReviewResult, status: str) -
     """Store a completed review and its comments.
 
     Background tasks run on a worker thread, so the request-scoped session from
-    ``get_db`` cannot be used here. Build a short-lived engine + session owned by
-    this thread and dispose of both before returning.
+    ``get_db`` cannot be used here — see ``_background_session_factory``.
     """
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
+    session_factory = _background_session_factory()
+    if session_factory is None:
         logger.warning("DATABASE_URL unset; not storing review for %s", repo_name)
         return
 
-    engine = create_engine(db_url)
-    local_session = sessionmaker(bind=engine)
-    db = local_session()
+    db = session_factory()
     try:
         installations = db.query(Installation).filter(
             Installation.repo_name == repo_name,
@@ -310,7 +397,6 @@ def _persist_review(repo_name: str, pr: PR, result: ReviewResult, status: str) -
         db.commit()
     finally:
         db.close()
-        engine.dispose()
 
 
 def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
@@ -554,18 +640,20 @@ async def github_callback(code: str, db: Session = Depends(get_db)):
     if not isinstance(github_user, dict) or "id" not in github_user or "login" not in github_user:
         raise HTTPException(status_code=400, detail="Could not read the GitHub profile")
 
-    # Save or update user in database
+    # Save or update user in database. github_id is the identity — a login can be
+    # renamed, and the new owner of the old login is a different person — so the
+    # profile fields are refreshed on every sign-in rather than frozen at the
+    # values captured the first time the user appeared.
+    login = github_user["login"]
     user = db.query(User).filter(User.github_id == github_user["id"]).first()
     if not user:
-        user = User(
-            github_id=github_user["id"],
-            name=github_user.get("name") or github_user["login"],
-            handle=f"@{github_user['login']}",
-            initials=github_user["login"][:2].upper(),
-            avatar_url=github_user.get("avatar_url"),
-        )
+        user = User(github_id=github_user["id"])
         db.add(user)
 
+    user.name = github_user.get("name") or login
+    user.handle = f"@{login}"
+    user.initials = login[:2].upper()
+    user.avatar_url = github_user.get("avatar_url")
     user.github_token = token
     db.commit()
     db.refresh(user)
@@ -791,25 +879,54 @@ async def get_github_repos(
     if not current_user.github_token:
         raise HTTPException(status_code=401, detail="No GitHub token stored")
 
+    github_repos: list = []
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.github.com/user/repos?per_page=100&sort=updated",
-            headers={
-                "Authorization": f"Bearer {current_user.github_token}",
-                "Accept": "application/json",
-            }
-        )
+        # /user/repos is paginated: one page of 100 silently hid every repo beyond
+        # the hundredth from users with more than that. Walk pages until GitHub
+        # returns a short one; GITHUB_REPO_PAGE_LIMIT is a stop so a bad response
+        # cannot spin here forever.
+        for page in range(1, GITHUB_REPO_PAGE_LIMIT + 1):
+            response = await client.get(
+                "https://api.github.com/user/repos",
+                params={
+                    "per_page": GITHUB_REPOS_PER_PAGE,
+                    "page": page,
+                    "sort": "updated",
+                },
+                headers={
+                    "Authorization": f"Bearer {current_user.github_token}",
+                    "Accept": "application/json",
+                },
+            )
 
-    # An error body is a dict, not a list, and the comprehension below would just
-    # skip it — the dashboard would show "no repositories" for what is really a
-    # revoked or expired OAuth token. Surface it instead.
-    if response.status_code != 200:
-        logger.warning("GitHub /user/repos returned %s", response.status_code)
-        if response.status_code == 401:
-            raise HTTPException(status_code=401, detail="GitHub token expired")
-        raise HTTPException(status_code=502, detail="Could not list repositories from GitHub")
+            # An error body is a dict, not a list, and the comprehension below would
+            # just skip it — the dashboard would show "no repositories" for what is
+            # really a revoked or expired OAuth token. Surface it instead.
+            if response.status_code != 200:
+                logger.warning("GitHub /user/repos returned %s", response.status_code)
+                if response.status_code == 401:
+                    raise HTTPException(status_code=401, detail="GitHub token expired")
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not list repositories from GitHub",
+                )
 
-    github_repos = response.json()
+            batch = response.json()
+            if not isinstance(batch, list):
+                raise HTTPException(
+                    status_code=502,
+                    detail="Unexpected response from GitHub",
+                )
+
+            github_repos.extend(batch)
+            if len(batch) < GITHUB_REPOS_PER_PAGE:
+                break  # short page: that was the last one
+        else:
+            logger.warning(
+                "Stopped listing repos for %s at the %s-page limit",
+                current_user.handle,
+                GITHUB_REPO_PAGE_LIMIT,
+            )
 
     connected_names = {
         inst.repo_name

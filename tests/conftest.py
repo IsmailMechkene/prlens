@@ -12,22 +12,20 @@ tweak the pieces they care about.
 #pytest tests/ --cov=prlens --cov-report=term-missing
 
 import json
-
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
 from github.PullRequest import PullRequest
 
 from prlens.config.settings import Settings
 from prlens.github.client import GitHubClient
 from prlens.llm.client import LLMClient
 from prlens.models.pr import (
+    PR,
     FileChange,
     FileChangeStatus,
-    PR,
     PRStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # LLM fixtures

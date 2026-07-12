@@ -23,7 +23,10 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     github_id: Mapped[int] = mapped_column(unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100))
-    handle: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    # Indexed but NOT unique: a handle is a GitHub login, which can be renamed and
+    # then re-registered by somebody else. github_id above is the identity. A unique
+    # handle turned that rename into an IntegrityError on an otherwise valid login.
+    handle: Mapped[str] = mapped_column(String(100), index=True)
     initials: Mapped[str] = mapped_column(String(10))
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 

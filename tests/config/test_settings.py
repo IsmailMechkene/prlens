@@ -1,4 +1,9 @@
-from prlens.config.settings import Settings, load_settings, filter_files, SupportedLanguages
+from prlens.config.settings import (
+    Settings,
+    SupportedLanguages,
+    filter_files,
+    load_settings,
+)
 from prlens.models.pr import FileChange, FileChangeStatus
 
 
