@@ -2,17 +2,95 @@ import base64
 import binascii
 import logging
 import os
+import re
 import time
 from pathlib import Path
 
 import jwt
 import requests
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from dotenv import load_dotenv
 from github import Github, GithubException, Repository
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 logger = logging.getLogger(__name__)
+
+_PEM_RE = re.compile(
+    r"-{2,}\s*BEGIN\s+(?P<label>[A-Z0-9 ]+?)\s*-{2,}(?P<body>.*?)-{2,}\s*END\s+(?P=label)\s*-{2,}",
+    re.DOTALL,
+)
+
+
+def _canonical_pem(raw: str) -> str:
+    """Rebuild a PEM from a value that has been through an environment variable.
+
+    A key pasted into a hosting dashboard rarely survives intact: the newlines come
+    back as the two characters ``\\n``, or as spaces, or the whole thing arrives on
+    one line, and the value may be wrapped in quotes. Every one of those parses as
+    "not a key" to PyJWT, with no clue as to why. So rather than trust the text,
+    take the base64 body out of it and re-emit a correct PEM: header, 64-character
+    lines, footer, trailing newline. Already-correct keys pass through unchanged.
+    """
+    text = raw.strip()
+
+    # A shell that quoted the value for you.
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1].strip()
+
+    # Not a PEM at all? Then it should be the base64 of one. The encodings are tried
+    # in turn because a key base64'd through PowerShell comes out UTF-16, and one
+    # written by a Windows editor carries a BOM — both decode to gibberish as UTF-8.
+    if "BEGIN" not in text:
+        try:
+            decoded = base64.b64decode(text, validate=False)
+        except (binascii.Error, ValueError):
+            return raw  # let the caller's validation produce the error message
+
+        for encoding in ("utf-8-sig", "utf-16", "utf-8"):
+            try:
+                text = decoded.decode(encoding).strip()
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            return raw
+
+    text = text.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\r\n", "\n")
+
+    match = _PEM_RE.search(text)
+    if not match:
+        return text
+
+    label = " ".join(match.group("label").split())
+    body = re.sub(r"\s+", "", match.group("body"))
+    lines = "\n".join(body[i:i + 64] for i in range(0, len(body), 64))
+    return f"-----BEGIN {label}-----\n{lines}\n-----END {label}-----\n"
+
+
+def _validated_pem(raw: str, source: str) -> str:
+    """Canonicalise a private key and prove it parses, or say exactly what is wrong.
+
+    ``source`` is the name of the variable it came from, so a bad key points at the
+    thing to go and fix.
+    """
+    pem = _canonical_pem(raw)
+
+    try:
+        load_pem_private_key(pem.encode(), password=None)
+    except (ValueError, TypeError, UnsupportedAlgorithm) as e:
+        head = pem.strip().splitlines()[0][:40] if pem.strip() else "<empty>"
+        raise ValueError(
+            f"The GitHub App private key in {source} is not a usable private key "
+            f"({e}). It starts with {head!r}. It must be the App's .pem — the whole "
+            "file, including the BEGIN/END lines — or that file base64 encoded "
+            "(base64 -w0 your-app.pem). A public key or a passphrase-protected key "
+            "will not work."
+        ) from e
+
+    logger.info("GitHub App private key loaded from %s", source)
+    return pem
 
 
 class GitHubClient:
@@ -41,6 +119,11 @@ class GitHubClient:
         in a deployed image. A GITHUB_APP_PRIVATE_KEY_PATH left over from a local
         checkout must therefore fall through to the environment instead of failing
         the whole process with a FileNotFoundError.
+
+        Whatever comes back is canonicalised and then verified to actually parse as a
+        private key, so a mangled value fails here — naming the variable it came from
+        — rather than a hundred lines later inside PyJWT as "could not parse the
+        provided public key".
         """
         key_path_str = os.getenv("GITHUB_APP_PRIVATE_KEY_PATH")
         if key_path_str:
@@ -49,7 +132,7 @@ class GitHubClient:
                 key_path = PROJECT_ROOT / key_path
             try:
                 with open(key_path, "r") as f:
-                    return f.read()
+                    return _validated_pem(f.read(), f"GITHUB_APP_PRIVATE_KEY_PATH ({key_path})")
             except OSError:
                 logger.warning(
                     "GITHUB_APP_PRIVATE_KEY_PATH points at %s, which cannot be read; "
@@ -57,18 +140,10 @@ class GitHubClient:
                     key_path,
                 )
 
-        private_key = os.getenv("GITHUB_APP_PRIVATE_KEY")
-        if private_key:
-            # A PEM pasted into a dashboard env var often arrives with its newlines
-            # escaped, which RS256 signing rejects as a malformed key.
-            return private_key.replace("\\n", "\n")
-
-        private_key_b64 = os.getenv("GITHUB_APP_PRIVATE_KEY_B64")
-        if private_key_b64:
-            try:
-                return base64.b64decode(private_key_b64).decode("utf-8")
-            except (binascii.Error, UnicodeDecodeError) as e:
-                raise ValueError("GITHUB_APP_PRIVATE_KEY_B64 is not valid base64") from e
+        for variable in ("GITHUB_APP_PRIVATE_KEY_B64", "GITHUB_APP_PRIVATE_KEY"):
+            value = os.getenv(variable)
+            if value:
+                return _validated_pem(value, variable)
 
         raise ValueError(
             "Neither GITHUB_APP_PRIVATE_KEY_PATH (readable), GITHUB_APP_PRIVATE_KEY nor "

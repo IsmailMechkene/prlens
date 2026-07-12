@@ -1,10 +1,22 @@
+import base64
 import time
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from github import GithubException
 
 from prlens.github.client import GitHubClient
+
+# A real key: the client now verifies that what it loaded actually parses as a
+# private key, so a placeholder string is (correctly) rejected. Generated once for
+# the module — it never leaves the test process.
+TEST_PEM = rsa.generate_private_key(public_exponent=65537, key_size=2048).private_bytes(
+    serialization.Encoding.PEM,
+    serialization.PrivateFormat.TraditionalOpenSSL,  # PKCS#1, as GitHub issues it
+    serialization.NoEncryption(),
+).decode()
 
 
 def _env(mapping):
@@ -24,7 +36,7 @@ def _post_response(token="inst-token", status=201, message="boom"):
 # Minimal environment that routes GitHubClient into GitHub App auth.
 APP_ENV = {
     "GITHUB_APP_ID": "123",
-    "GITHUB_APP_PRIVATE_KEY": "PRIVKEY",
+    "GITHUB_APP_PRIVATE_KEY": TEST_PEM,
     "GITHUB_APP_INSTALLATION_ID": "456",
 }
 
@@ -100,7 +112,7 @@ def test_init_authenticates_as_github_app():
 
     # JWT signed with the App's private key using RS256, issued by the App ID.
     payload, key = mock_jwt.call_args.args
-    assert key == "PRIVKEY"
+    assert key == TEST_PEM
     assert payload["iss"] == "123"
     assert mock_jwt.call_args.kwargs["algorithm"] == "RS256"
 
@@ -110,7 +122,7 @@ def test_init_authenticates_as_github_app():
 
     # Credentials cached for later refreshes.
     assert client._app_id == "123"
-    assert client._private_key == "PRIVKEY"
+    assert client._private_key == TEST_PEM
     assert client._installation_id == "456"
     assert client._token_expiry > int(time.time())
 
@@ -123,14 +135,14 @@ def test_app_auth_reads_private_key_from_path():
     }
     with patch("prlens.github.client.load_dotenv"), \
          patch("prlens.github.client.os.getenv", side_effect=_env(env)), \
-         patch("builtins.open", mock_open(read_data="FILE-KEY")), \
+         patch("builtins.open", mock_open(read_data=TEST_PEM)), \
          patch("prlens.github.client.jwt.encode", return_value="signed.jwt") as mock_jwt, \
          patch("prlens.github.client.requests.post", return_value=_post_response()), \
          patch("prlens.github.client.Github"):
         client = GitHubClient()
 
-    assert client._private_key == "FILE-KEY"
-    assert mock_jwt.call_args.args[1] == "FILE-KEY"
+    assert client._private_key == TEST_PEM
+    assert mock_jwt.call_args.args[1] == TEST_PEM
 
 
 def test_app_auth_raises_when_no_private_key():
@@ -143,7 +155,7 @@ def test_app_auth_raises_when_no_private_key():
 
 
 def test_app_auth_raises_when_no_installation_id():
-    env = {"GITHUB_APP_ID": "123", "GITHUB_APP_PRIVATE_KEY": "PRIVKEY"}
+    env = {"GITHUB_APP_ID": "123", "GITHUB_APP_PRIVATE_KEY": TEST_PEM}
     with patch("prlens.github.client.load_dotenv"), \
          patch("prlens.github.client.os.getenv", side_effect=_env(env)), \
          patch("prlens.github.client.Github"):
@@ -155,7 +167,7 @@ def test_auth_as_github_app_raises_when_no_app_id():
     # Exercise the defensive app_id guard directly (unreachable via __init__,
     # which only calls this branch when GITHUB_APP_ID is already set).
     client = object.__new__(GitHubClient)
-    env = {"GITHUB_APP_PRIVATE_KEY": "PRIVKEY"}
+    env = {"GITHUB_APP_PRIVATE_KEY": TEST_PEM}
     with patch("prlens.github.client.os.getenv", side_effect=_env(env)):
         with pytest.raises(ValueError, match="GITHUB_APP_ID not found"):
             client._auth_as_github_app()
@@ -202,3 +214,83 @@ def test_refresh_noop_when_token_is_fresh():
     client._refresh_token_if_needed()
 
     client._auth_as_github_app.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Private key loading: a PEM rarely survives a hosting dashboard intact
+# ---------------------------------------------------------------------------
+
+MANGLED_KEYS = {
+    "escaped newlines": TEST_PEM.replace("\n", "\n"),
+    "collapsed onto one line": TEST_PEM.replace("\n", " "),
+    "wrapped in quotes": f'"{TEST_PEM}"',
+    "crlf line endings": TEST_PEM.replace("\n", "\r\n"),
+}
+
+
+@pytest.mark.parametrize("mangled", MANGLED_KEYS.values(), ids=list(MANGLED_KEYS))
+def test_app_auth_repairs_a_mangled_pem(mangled):
+    """The key still signs even when the environment mangled its newlines.
+
+    This is the failure that stopped every review in production: PyJWT rejected the
+    value with "Could not parse the provided public key".
+    """
+    env = {
+        "GITHUB_APP_ID": "123",
+        "GITHUB_APP_INSTALLATION_ID": "456",
+        "GITHUB_APP_PRIVATE_KEY": mangled,
+    }
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(env)), \
+         patch("prlens.github.client.requests.post", return_value=_post_response()), \
+         patch("prlens.github.client.Github"):
+        client = GitHubClient()
+
+    assert client._private_key == TEST_PEM  # rebuilt into a canonical PEM
+
+
+def test_app_auth_accepts_base64_encoded_key():
+    env = {
+        "GITHUB_APP_ID": "123",
+        "GITHUB_APP_INSTALLATION_ID": "456",
+        "GITHUB_APP_PRIVATE_KEY_B64": base64.b64encode(TEST_PEM.encode()).decode(),
+    }
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(env)), \
+         patch("prlens.github.client.requests.post", return_value=_post_response()), \
+         patch("prlens.github.client.Github"):
+        client = GitHubClient()
+
+    assert client._private_key == TEST_PEM
+
+
+def test_app_auth_falls_back_when_key_file_is_missing():
+    """The .pem is not in the deployed image (*.pem is docker-ignored), so a stale
+    GITHUB_APP_PRIVATE_KEY_PATH must not be fatal."""
+    env = {
+        "GITHUB_APP_ID": "123",
+        "GITHUB_APP_INSTALLATION_ID": "456",
+        "GITHUB_APP_PRIVATE_KEY_PATH": "not-in-the-image.pem",
+        "GITHUB_APP_PRIVATE_KEY_B64": base64.b64encode(TEST_PEM.encode()).decode(),
+    }
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(env)), \
+         patch("builtins.open", side_effect=FileNotFoundError), \
+         patch("prlens.github.client.requests.post", return_value=_post_response()), \
+         patch("prlens.github.client.Github"):
+        client = GitHubClient()
+
+    assert client._private_key == TEST_PEM
+
+
+def test_app_auth_rejects_an_unusable_key_naming_its_variable():
+    env = {
+        "GITHUB_APP_ID": "123",
+        "GITHUB_APP_INSTALLATION_ID": "456",
+        "GITHUB_APP_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\nnope\n-----END RSA PRIVATE KEY-----",
+    }
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(env)), \
+         patch("prlens.github.client.Github"):
+        with pytest.raises(ValueError, match="GITHUB_APP_PRIVATE_KEY is not a usable private key"):
+            GitHubClient()
