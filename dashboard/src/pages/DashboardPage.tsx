@@ -11,13 +11,21 @@ import { StatCard } from '../components/dashboard/StatCard'
 import { ReviewsTable } from '../components/dashboard/ReviewsTable'
 import styles from './DashboardPage.module.css'
 
-/** One placeholder per stat tile, so the grid keeps its shape while loading. */
+/**
+ * One placeholder per stat tile — four, matching the four the endpoint returns and
+ * the four columns of the grid. The Card primitive carries no padding of its own
+ * (StatCard adds it), so the skeleton has to supply its own, or its contents sit
+ * flush against the border.
+ */
 const statsSkeleton = (
   <>
-    {[0, 1, 2].map((i) => (
+    {[0, 1, 2, 3].map((i) => (
       <Card key={i} className={styles.statSkeleton}>
-        <Skeleton width={104} height={12} />
-        <Skeleton width={56} height={24} />
+        <div className={styles.statSkeletonLabel}>
+          <Skeleton width={15} height={15} radius="50%" />
+          <Skeleton width={96} height={12} />
+        </div>
+        <Skeleton width={54} height={26} />
       </Card>
     ))}
   </>

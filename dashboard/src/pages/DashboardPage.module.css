@@ -11,12 +11,18 @@
   margin-bottom: 30px;
 }
 
+/* Mirrors StatCard: same padding, same label-then-value rhythm, so the tiles don't
+   resize or shift when the real numbers arrive. */
 .statSkeleton {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 14px;
-  min-height: 92px;
+  padding: calc(18px * var(--dsc)) 18px calc(16px * var(--dsc));
+  gap: 12px;
+}
+.statSkeletonLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .rowSkeleton {
