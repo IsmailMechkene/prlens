@@ -1,3 +1,6 @@
+import base64
+import binascii
+import logging
 import os
 import time
 from pathlib import Path
@@ -8,6 +11,9 @@ from dotenv import load_dotenv
 from github import Github, GithubException, Repository
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+logger = logging.getLogger(__name__)
+
 
 class GitHubClient:
     def __init__(self):
@@ -26,21 +32,57 @@ class GitHubClient:
 
         self.client = Github(self.token)
 
+    def _load_private_key(self) -> str:
+        """The GitHub App private key, from whichever source is available.
+
+        Three sources, in order: a .pem on disk, the key itself, or the key base64
+        encoded. All three are tried rather than the first that is *configured*,
+        because `*.pem` is both git- and docker-ignored — the key file does not exist
+        in a deployed image. A GITHUB_APP_PRIVATE_KEY_PATH left over from a local
+        checkout must therefore fall through to the environment instead of failing
+        the whole process with a FileNotFoundError.
+        """
+        key_path_str = os.getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+        if key_path_str:
+            key_path = Path(key_path_str)
+            if not key_path.is_absolute():
+                key_path = PROJECT_ROOT / key_path
+            try:
+                with open(key_path, "r") as f:
+                    return f.read()
+            except OSError:
+                logger.warning(
+                    "GITHUB_APP_PRIVATE_KEY_PATH points at %s, which cannot be read; "
+                    "falling back to the key in the environment",
+                    key_path,
+                )
+
+        private_key = os.getenv("GITHUB_APP_PRIVATE_KEY")
+        if private_key:
+            # A PEM pasted into a dashboard env var often arrives with its newlines
+            # escaped, which RS256 signing rejects as a malformed key.
+            return private_key.replace("\\n", "\n")
+
+        private_key_b64 = os.getenv("GITHUB_APP_PRIVATE_KEY_B64")
+        if private_key_b64:
+            try:
+                return base64.b64decode(private_key_b64).decode("utf-8")
+            except (binascii.Error, UnicodeDecodeError) as e:
+                raise ValueError("GITHUB_APP_PRIVATE_KEY_B64 is not valid base64") from e
+
+        raise ValueError(
+            "Neither GITHUB_APP_PRIVATE_KEY_PATH (readable), GITHUB_APP_PRIVATE_KEY nor "
+            "GITHUB_APP_PRIVATE_KEY_B64 yielded a private key. In a container the key "
+            "file is not present, so set GITHUB_APP_PRIVATE_KEY_B64."
+        )
+
     def _auth_as_github_app(self):
         private_key = getattr(self, '_private_key', None)
         app_id = getattr(self, '_app_id', None)
         installation_id = getattr(self, '_installation_id', None)
 
         if not private_key:
-            key_path_str = os.getenv("GITHUB_APP_PRIVATE_KEY_PATH")
-            if key_path_str:
-                key_path = PROJECT_ROOT / key_path_str
-                with open(key_path, "r") as f:
-                    private_key = f.read()
-            else:
-                private_key = os.getenv("GITHUB_APP_PRIVATE_KEY")
-                if not private_key:
-                    raise ValueError("Neither GITHUB_APP_PRIVATE_KEY_PATH nor GITHUB_APP_PRIVATE_KEY found")
+            private_key = self._load_private_key()
 
         if not app_id:
             app_id = os.getenv("GITHUB_APP_ID")

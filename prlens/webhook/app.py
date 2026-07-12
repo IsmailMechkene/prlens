@@ -42,6 +42,11 @@ from prlens.models.review import ReviewResult, ReviewType, Severity
 
 load_dotenv()
 
+# uvicorn configures its own loggers, not the root one, so without this the app's
+# own INFO records have no handler and are dropped — which is how a review that
+# never ran left no trace in the deployment logs. No-op if logging is already set up.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
 logger = logging.getLogger(__name__)
 
 # Origin the React dashboard is served from. Drives both the CORS allow-list and
@@ -50,12 +55,33 @@ FRONTEND_URLS = os.getenv("FRONTEND_URL", "http://localhost:5173").split(",")
 FRONTEND_ORIGIN = FRONTEND_URLS[0]
 
 
+def _check_github_credentials() -> None:
+    """Fail loudly at boot if the GitHub App credentials cannot be used.
+
+    Building the client is the step that reads the App's private key and exchanges
+    it for an installation token. Doing it once at startup turns "pull requests are
+    silently never reviewed" into a single, obvious line in the deployment log.
+    """
+    try:
+        GitHubClient()
+    except Exception:
+        logger.exception(
+            "GitHub credentials are unusable — PULL REQUESTS WILL NOT BE REVIEWED. "
+            "Check GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and the private key "
+            "(GITHUB_APP_PRIVATE_KEY_B64 in a container: the .pem file is not in the image)."
+        )
+    else:
+        logger.info("GitHub App credentials OK")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     try:
         init_db()
-    except Exception as e:
-        print(f"Warning: database init failed: {e}. App will start anyway.")
+    except Exception:
+        logger.exception("Database init failed. App will start anyway.")
+
+    _check_github_credentials()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -410,13 +436,13 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
     with _processing_lock:
         # Reject if already running
         if pr_key in _processing_prs:
-            print(f"Skipping: {pr_key} already processing")
+            logger.info("Skipping %s: already processing", pr_key)
             return
 
         # Reject if processed too recently
         last = _last_processed.get(pr_key, 0)
         if now - last < DEBOUNCE_SECONDS:
-            print(f"Debouncing: {pr_key} processed {now - last:.1f}s ago")
+            logger.info("Debouncing %s: processed %.1fs ago", pr_key, now - last)
             return
 
         # Mark as active
@@ -430,13 +456,21 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
             if key != pr_key and now - last_seen >= DEBOUNCE_SECONDS:
                 del _last_processed[key]
 
+    # This whole body runs on a BackgroundTasks worker, *after* the webhook has
+    # answered 200. Nothing raised here can become an HTTP error any more — it only
+    # surfaces as an unhandled ASGI traceback — so every failure is caught and
+    # logged. Building the clients is inside the guard as much as the review is:
+    # GitHubClient() raises when the App credentials are unusable, and that used to
+    # escape silently, which looked exactly like "the agent never runs".
     try:
+        logger.info("Reviewing %s (opened by %s)", pr_key, actor)
+
         # A connected repo reviews with the settings edited in the dashboard;
         # anything else falls back to .aireviewer.yml.
         config = _repo_config(repo_name)
 
         if config is not None and not config.active:
-            print(f"Paused: reviewing is disabled for {repo_name}")
+            logger.info("Paused: reviewing is disabled for %s", repo_name)
             return
 
         settings = config.settings if config is not None else load_settings()
@@ -447,22 +481,17 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
         pr_publisher = PRPublisher(github_client, settings)
         agent = Agent(llm_client, pr_fetcher, pr_publisher, analyzer, settings)
 
-        # Runs on a BackgroundTasks worker after the webhook response has already
-        # been sent, so an escaping exception cannot be turned into an HTTP error —
-        # it would only surface as an unhandled ASGI error. Log it and stop.
-        try:
-            review_output = agent.run(repo_name, pr_number, actor)
-        except Exception:
-            logger.exception("Review failed for %s", pr_key)
-            return
+        pr, result = agent.run(repo_name, pr_number, actor)
+        logger.info("Reviewed %s: score %s", pr_key, result.score)
 
         # The review is already live on the PR by now, so nothing below may be
         # allowed to fail the task — the dashboard row is a best-effort mirror.
         try:
-            pr, result = review_output
             _persist_review(repo_name, pr, result, _outcome_to_status(result, pr_publisher))
         except Exception:
             logger.exception("Could not store review for %s", pr_key)
+    except Exception:
+        logger.exception("Review failed for %s", pr_key)
     finally:
         with _processing_lock:
             _processing_prs.discard(pr_key)
