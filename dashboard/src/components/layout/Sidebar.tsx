@@ -1,15 +1,17 @@
 import { useCallback, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { api, logout } from '../../lib/api'
+import { api } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { Icon } from '../ui/Icon'
 import { Logo } from '../ui/Logo'
 import { Skeleton } from '../ui/Skeleton'
+import { LogoutDialog } from './LogoutDialog'
 import { ThemeControls } from './ThemeControls'
 import styles from './Sidebar.module.css'
 
 export function Sidebar() {
   const [themeOpen, setThemeOpen] = useState(false)
+  const [logoutOpen, setLogoutOpen] = useState(false)
 
   const repos = useAsync(() => api.getRepos(), [])
   const user = useAsync(() => api.getUser(), [])
@@ -89,15 +91,14 @@ export function Sidebar() {
             className={styles.gear}
             aria-label="Disconnect from account"
             title="Disconnect from account"
-            onClick={() => {
-              logout()
-              window.location.href = '/'
-            }}
+            onClick={() => setLogoutOpen(true)}
           >
             <Icon name="log-out" size={16} />
           </button>
         </div>
       </div>
+
+      <LogoutDialog open={logoutOpen} onCancel={() => setLogoutOpen(false)} />
     </aside>
   )
 }

@@ -1,0 +1,63 @@
+.head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rad-sm);
+  flex-shrink: 0;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.cancel,
+.confirm {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--rad-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cancel {
+  color: var(--fg-default);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+}
+.cancel:hover {
+  border-color: #8b949e;
+}
+.confirm {
+  color: #fff;
+  background: var(--danger);
+  border: 1px solid transparent;
+}
+.confirm:hover {
+  filter: brightness(1.08);
+}
