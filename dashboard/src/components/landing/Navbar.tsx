@@ -12,7 +12,6 @@ export function Navbar() {
         <div className={styles.links}>
           <Link to="/features" className={styles.link}>Features</Link>
           <Link to="/docs" className={styles.link}>Docs</Link>
-          <span className={styles.link}>Pricing</span>
           <button type="button" className={styles.signIn} onClick={() => navigate('/dashboard')}>
             <GitHubIcon size={15} /> Sign in
           </button>

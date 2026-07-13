@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { api } from '../../lib/api'
+import { api, logout } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { Icon } from '../ui/Icon'
 import { Logo } from '../ui/Logo'
@@ -83,6 +83,18 @@ export function Sidebar() {
             onClick={() => setThemeOpen((v) => !v)}
           >
             <Icon name="settings" size={16} />
+          </button>
+          <button
+            type="button"
+            className={styles.gear}
+            aria-label="Disconnect from account"
+            title="Disconnect from account"
+            onClick={() => {
+              logout()
+              window.location.href = '/'
+            }}
+          >
+            <Icon name="log-out" size={16} />
           </button>
         </div>
       </div>
