@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { ApiError, api, isLoginRedirectPending } from '../../lib/api'
+import { ApiError, api, hasSeenIntro, isLoginRedirectPending, markIntroSeen } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { AsyncBoundary } from '../ui/AsyncBoundary'
+import { LoadingTransition } from '../ui/LoadingTransition'
 
 /**
  * Route guard for the authenticated app shell.
@@ -14,9 +16,15 @@ import { AsyncBoundary } from '../ui/AsyncBoundary'
  * the redirect was suppressed (mock mode, or a login that already failed once —
  * without which a backend that keeps rejecting tokens would bounce the browser
  * between the dashboard and GitHub forever).
+ *
+ * On the first authenticated render after a login it also plays the boot
+ * transition over the shell. The shell renders underneath it the whole time, so
+ * the pages behind it are fetching their own data while it runs and the fade-out
+ * uncovers a dashboard rather than a second round of spinners.
  */
 export function RequireAuth() {
   const user = useAsync(() => api.getUser(), [])
+  const [intro, setIntro] = useState(() => !hasSeenIntro())
 
   const unauthenticated = user.error instanceof ApiError && user.error.status === 401
 
@@ -24,7 +32,19 @@ export function RequireAuth() {
 
   return (
     <AsyncBoundary state={user} minHeight={320}>
-      {() => <Outlet />}
+      {() => (
+        <>
+          <Outlet />
+          {intro && (
+            <LoadingTransition
+              onComplete={() => {
+                markIntroSeen()
+                setIntro(false)
+              }}
+            />
+          )}
+        </>
+      )}
     </AsyncBoundary>
   )
 }

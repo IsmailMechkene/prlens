@@ -44,6 +44,8 @@ export const githubLoginUrl = `${BASE_URL}/auth/github`
 const TOKEN_KEY = 'prlens_token'
 /** Marks that an OAuth redirect has already been tried since the last good call. */
 const LOGIN_TRIED_KEY = 'prlens_login_tried'
+/** Marks that the boot transition has already played for the current login. */
+const INTRO_SEEN_KEY = 'prlens_intro_seen'
 
 /**
  * Web Storage is not always reachable: reading `window.localStorage` throws a
@@ -102,6 +104,21 @@ export function getToken(): string | null {
 /** Clear the stored token; the next guarded route will bounce to OAuth. */
 export function logout(): void {
   tokenStore.removeItem(TOKEN_KEY)
+  // Replay the boot transition on the next login rather than only ever once.
+  tokenStore.removeItem(INTRO_SEEN_KEY)
+}
+
+/**
+ * Whether the boot transition has already played since the user last logged in.
+ * Persisted (not per-tab) so it doesn't replay on every route change or reload,
+ * and cleared by logout() so a fresh login gets it again.
+ */
+export function hasSeenIntro(): boolean {
+  return tokenStore.getItem(INTRO_SEEN_KEY) === '1'
+}
+
+export function markIntroSeen(): void {
+  tokenStore.setItem(INTRO_SEEN_KEY, '1')
 }
 
 /** True once startLogin() has begun a full-page navigation to GitHub. */
