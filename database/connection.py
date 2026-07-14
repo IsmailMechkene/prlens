@@ -14,14 +14,18 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL not found in environment")
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
+# Optional by design: without it, the app still starts and still reviews PRs
+# (falling back to .aireviewer.yml) — it just stores nothing and the dashboard
+# API 500s. Raising here at import time would take the whole webhook server
+# down before it got the chance to run without a database, which is exactly
+# the mode the README documents.
+engine = create_engine(DATABASE_URL) if DATABASE_URL else None
+SessionLocal = sessionmaker(bind=engine) if engine is not None else None
 
 
 def get_db() -> Generator[Session, None, None]:
+    if SessionLocal is None:
+        raise RuntimeError("DATABASE_URL not found in environment")
     db = SessionLocal()
     try:
         yield db
@@ -82,6 +86,10 @@ def _add_user_role_column() -> None:
 
 
 def init_db():
+    if engine is None:
+        logger.warning("DATABASE_URL unset; skipping database init.")
+        return
+
     Base.metadata.create_all(bind=engine)
     _relax_handle_uniqueness()
     _add_user_role_column()
