@@ -1,0 +1,1227 @@
+% =============================================================================
+%  Rapport de Projet — PRLens
+%  Faculte des Sciences de Tunis — Departement des Sciences de l'Informatique
+%
+%  Compilation : pdflatex rapport.tex  (x2, pour la table des matieres et les
+%  renvois), avec un moteur pdfLaTeX standard (TeXLive / MiKTeX). Aucun
+%  package non standard, aucune image externe : tous les schemas sont
+%  generes en TikZ pour garantir une compilation autonome.
+%
+%  Champs a completer avant impression : chercher la chaine "A COMPLETER".
+% =============================================================================
+
+\documentclass[a4paper,12pt,oneside]{report}
+
+% ---- Langue et encodage -----------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+
+% ---- Mise en page ------------------------------------------------------------
+\usepackage[a4paper,left=3cm,right=2.5cm,top=2.5cm,bottom=2.5cm,headheight=15pt]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{amsmath}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage[table]{xcolor}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.multipart,fit,calc,backgrounds}
+\usepackage{listings}
+\usepackage{url}
+
+% ---- Palette professionnelle -------------------------------------------------
+% (definie avant hyperref, qui reference ces couleurs dans ses options)
+\definecolor{prlensblue}{RGB}{22,52,94}
+\definecolor{prlenslight}{RGB}{88,166,255}
+\definecolor{prlensgrey}{RGB}{90,90,90}
+\definecolor{codebg}{RGB}{245,246,248}
+\definecolor{codeframe}{RGB}{210,214,220}
+
+\usepackage[colorlinks=true,linkcolor=prlensblue,citecolor=prlensblue,urlcolor=prlensblue,bookmarksopen=true]{hyperref}
+\usepackage[toc,page]{appendix}
+
+% ---- Macro pour identifiants techniques --------------------------------------
+% Basee sur \url : le contenu est verbatim (pas d'echappement des "_", "{", "}")
+% et surtout il peut se couper en fin de ligne apres "_", "/", "." ou "-", ce qui
+% evite les debordements dans les colonnes etroites des tableaux.
+\DeclareUrlCommand\code{\urlstyle{tt}}
+
+% Points de coupure supplementaires : sans "-" et ":", une longue commande du
+% type "pytest --cov-report=term-missing" reste insecable et etire la ligne
+% precedente (lignes "underfull" aux espaces inter-mots beants).
+\makeatletter
+\g@addto@macro\UrlBreaks{\do\-\do\:}
+\makeatother
+
+% ---- Justification : evite les coupures et espacements inter-mots aberrants ---
+\setlength{\emergencystretch}{3em}
+\hyphenpenalty=200
+\tolerance=2000
+
+% ---- Colonnes de tableau alignees a gauche (pas de justification forcee) ------
+% Le drapeau a droite supprime les "trous" inesthetiques dans les cellules
+% etroites, principale cause des retours a la ligne mal places.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% ---- Presentation homogene des tableaux --------------------------------------
+% Interligne simple + corps reduit : un tableau doit rester compact meme si le
+% texte courant est en interligne 1,5.
+\newcommand{\tablesetup}{\small\singlespacing\renewcommand{\arraystretch}{1.25}}
+
+% ---- Listes plus compactes ----------------------------------------------------
+\setlist[itemize]{topsep=4pt,itemsep=3pt,parsep=0pt,leftmargin=1.4em}
+\setlist[enumerate]{topsep=4pt,itemsep=3pt,parsep=0pt,leftmargin=1.8em}
+
+% ---- Titres de chapitres / sections -----------------------------------------
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\Huge\color{prlensblue}}
+  {\filright\Large\MakeUppercase{\chaptertitlename}~\thechapter}
+  {8pt}{\filright}
+\titlespacing*{\chapter}{0pt}{0pt}{28pt}
+
+\titleformat{\section}
+  {\normalfont\bfseries\Large\color{prlensblue}}{\thesection}{10pt}{}
+\titleformat{\subsection}
+  {\normalfont\bfseries\large\color{prlensblue}}{\thesubsection}{8pt}{}
+\titleformat{\subsubsection}
+  {\normalfont\bfseries\normalsize\color{prlensblue}}{\thesubsubsection}{8pt}{}
+
+% ---- En-tetes / pieds de page -------------------------------------------------
+% Le titre de chapitre en capitales debordait sur le titre courant de droite
+% (en-tetes qui se chevauchent). On le compose en bas de casse, en corps reduit,
+% et on raccourcit le titre courant de droite.
+\renewcommand{\chaptermark}[1]{\markboth{\chaptername\ \thechapter.\ #1}{}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\footnotesize\color{prlensgrey}\nouppercase{\leftmark}}
+\fancyhead[R]{\footnotesize\color{prlensgrey}PRLens}
+\fancyfoot[C]{\small\thepage}
+
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyfoot[C]{\small\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+% ---- Listings (extraits de code) ---------------------------------------------
+% listings ne connait pas YAML nativement : on en definit une version minimale.
+\lstdefinelanguage{yaml}{
+  keywords={true,false,null,yes,no,on,off},
+  sensitive=false,
+  comment=[l]{\#},
+  morestring=[b]",
+  morestring=[b]',
+}
+
+\lstdefinestyle{prlens}{
+  backgroundcolor=\color{codebg},
+  rulecolor=\color{codeframe},
+  frame=single,
+  framesep=6pt,
+  basicstyle=\ttfamily\footnotesize\singlespacing,
+  keywordstyle=\color{prlensblue}\bfseries,
+  commentstyle=\color{prlensgrey}\itshape,
+  stringstyle=\color{teal},
+  numbers=left,
+  numberstyle=\tiny\color{prlensgrey},
+  numbersep=8pt,
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  tabsize=2,
+  captionpos=b,
+}
+\lstset{style=prlens}
+
+% ---- Legendes ------------------------------------------------------------
+% Les legendes sont systematiquement placees SOUS l'element qu'elles decrivent
+% (figures, tableaux, listings).
+\captionsetup{font={small,singlespacing},labelfont={bf,color=prlensblue},
+  margin=1cm,skip=8pt,position=bottom}
+\captionsetup[table]{skip=8pt}
+
+% Le corps du texte renvoie au "tableau X" : on aligne la legende sur ce terme
+% (babel-french nomme les legendes de tableaux "Table" par defaut).
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
+
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{[A COMPLETER : #1]}}}
+
+% =============================================================================
+\begin{document}
+
+% ---------------------------------------------------------------------------
+% PAGE DE GARDE
+% ---------------------------------------------------------------------------
+\begin{titlepage}
+\centering
+\thispagestyle{empty}
+
+{\large REPUBLIQUE TUNISIENNE\par}
+{\large MINISTERE DE L'ENSEIGNEMENT SUPERIEUR\par}
+{\large ET DE LA RECHERCHE SCIENTIFIQUE\par}
+\vspace{0.3cm}
+{\Large\bfseries UNIVERSITE TUNIS EL MANAR\par}
+\vspace{0.6cm}
+
+\begin{tikzpicture}
+  \draw[prlensblue,line width=1pt] (0,0) -- (10,0);
+\end{tikzpicture}
+
+\vspace{0.3cm}
+{\Large\bfseries FACULTE DES SCIENCES DE TUNIS\par}
+{\large DEPARTEMENT DES SCIENCES DE L'INFORMATIQUE\par}
+
+\vspace{2cm}
+
+{\Large\scshape Rapport de\par}
+{\Large\scshape Projet en Nouvelles Technologies\par}
+
+\vspace{1.5cm}
+
+\begin{tikzpicture}
+  \node[draw=prlensblue,line width=1.1pt,rounded corners=2pt,inner sep=14pt,text width=13.5cm,align=center] {
+    \Large\bfseries PRLens\\[4pt]
+    \normalsize\mdseries Systeme automatise de revue de code par intelligence artificielle pour les Pull Requests GitHub
+  };
+\end{tikzpicture}
+
+\vspace{2cm}
+
+\begin{minipage}{0.48\textwidth}
+\begin{flushleft}
+\textbf{Realise par~:}\\[4pt]
+Ismail MECHKENE
+\end{flushleft}
+\end{minipage}
+\begin{minipage}{0.48\textwidth}
+\begin{flushright}
+\textbf{Encadre par~:}\\[4pt]
+M. Faouzi MOUSSA
+\end{flushright}
+\end{minipage}
+
+\vspace{1.5cm}
+
+\textbf{Organisme d'accueil~:} FST -- DSI
+
+\vspace{2.5cm}
+
+{\large Annee Universitaire~: 2025 -- 2026}
+
+\end{titlepage}
+
+\newpage
+\pagenumbering{roman}
+
+% ---------------------------------------------------------------------------
+% FICHE DE SYNTHESE
+% ---------------------------------------------------------------------------
+\chapter*{Fiche de synthese}
+\addcontentsline{toc}{chapter}{Fiche de synthese}
+
+Dans le cadre de la gestion informatisee des projets et de l'archivage des rapports, les items suivants sont renseignes~:
+
+\begingroup
+\tablesetup
+\begin{longtable}{|L{4.8cm}|L{9.2cm}|}
+\hline
+\rowcolor{prlensblue!10}
+\textbf{Champ} & \textbf{Valeur} \\
+\hline
+Formation & Licence Appliquee en Sciences de l'Informatique \\
+\hline
+Annee Universitaire & 2025 -- 2026 \\
+\hline
+Session & Principale \\
+\hline
+Auteur & Ismail MECHKENE \\
+\hline
+Email et telephone du responsable du groupe & \todo{email et telephone} \\
+\hline
+Titre du rapport & PRLens~: Systeme automatise de revue de code par intelligence artificielle pour les Pull Requests GitHub \\
+\hline
+Organisme d'accueil & FST -- DSI \\
+\hline
+Pays d'accueil & Tunisie \\
+\hline
+Responsable de stage & M. Faouzi MOUSSA \\
+\hline
+Email du responsable de stage & \todo{email du responsable} \\
+\hline
+Mots-cles & Revue de code, Intelligence artificielle, GitHub, LLM, Automatisation \\
+\hline
+\end{longtable}
+\endgroup
+
+% ---------------------------------------------------------------------------
+% CHARTE DE NON PLAGIAT
+% ---------------------------------------------------------------------------
+\chapter*{Charte de non plagiat}
+\addcontentsline{toc}{chapter}{Charte de non plagiat}
+\section*{Protection de la propriete intellectuelle}
+
+Tout travail universitaire doit etre realise dans le respect integral de la propriete intellectuelle d'autrui. Pour tout travail personnel, ou collectif, pour lequel le candidat est autorise a utiliser des documents (textes, images, code source, etc.), celui-ci doit tres precisement signaler le credit (reference complete du texte cite, de la bibliotheque logicielle ou de la source internet utilisee) a la fois dans le corps du texte et dans la bibliographie.
+
+\vspace{1cm}
+
+Je soussigne, \textbf{Ismail MECHKENE}, etudiant en Licence Appliquee en Sciences de l'Informatique, m'engage a respecter cette charte.
+
+\vspace{2cm}
+
+\noindent Fait a Tunis, le \todo{date}
+
+\vspace{1.5cm}
+
+\noindent Signature~: \hrulefill
+
+% ---------------------------------------------------------------------------
+% REMERCIEMENTS
+% ---------------------------------------------------------------------------
+\chapter*{Remerciements}
+\addcontentsline{toc}{chapter}{Remerciements}
+
+Je tiens tout d'abord a exprimer ma sincere gratitude a mon encadrant, \textbf{M.~Faouzi MOUSSA}, pour sa disponibilite, la pertinence de ses conseils et la rigueur qu'il a su transmettre tout au long de ce projet. Ses orientations methodologiques ont ete determinantes dans la structuration de la demarche adoptee, depuis l'analyse du besoin jusqu'a la validation de la solution.
+
+Mes remerciements s'adressent egalement a l'ensemble du corps enseignant du Departement des Sciences de l'Informatique de la Faculte des Sciences de Tunis, pour la qualite de la formation dispensee durant ce cursus, qui a constitue le socle des competences mobilisees dans ce projet.
+
+Je remercie enfin toute personne ayant, de pres ou de loin, contribue a l'aboutissement de ce travail.
+
+% ---------------------------------------------------------------------------
+% TABLES
+% ---------------------------------------------------------------------------
+\tableofcontents
+\clearpage
+\listoffigures
+\addcontentsline{toc}{chapter}{Liste des figures}
+\clearpage
+\listoftables
+\addcontentsline{toc}{chapter}{Liste des tableaux}
+\clearpage
+
+\chapter*{Liste des annexes}
+\addcontentsline{toc}{chapter}{Liste des annexes}
+\begin{itemize}[leftmargin=1.2cm]
+  \item \textbf{Annexe A} --- Exemple de fichier de configuration \code{.aireviewer.yml}
+  \item \textbf{Annexe B} --- Exemple de commentaire genere par PRLens
+  \item \textbf{Annexe C} --- Modele de donnees (extrait SQLAlchemy)
+  \item \textbf{Annexe D} --- Liste complete des variables d'environnement
+  \item \textbf{Annexe E} --- Liste complete des points d'acces de l'API REST
+\end{itemize}
+
+\clearpage
+\pagenumbering{arabic}
+
+% =============================================================================
+\chapter*{Introduction generale}
+\addcontentsline{toc}{chapter}{Introduction generale}
+\markboth{Introduction generale}{}
+
+La revue de code (\emph{code review}) est aujourd'hui une etape incontournable du cycle de developpement logiciel~: elle conditionne la qualite, la securite et la maintenabilite d'une base de code, et constitue le principal garde-fou avant l'integration de tout changement dans une branche principale. Sur la plateforme GitHub, ce processus prend la forme de la \emph{Pull Request} (PR), un mecanisme qui propose un ensemble de modifications, ouvre une discussion et exige generalement l'approbation d'un ou plusieurs relecteurs humains avant fusion.
+
+Or cette relecture humaine se heurte a des limites bien connues~: elle est chronophage, elle depend fortement de la disponibilite et de l'attention du relecteur, et elle est sujette a l'inconstance --- deux relecteurs, voire un meme relecteur a deux moments differents, ne detectent pas systematiquement les memes problemes. Dans des equipes ou le volume de Pull Requests est important, ce goulot d'etranglement ralentit le rythme de livraison et laisse regulierement passer des defauts evitables (secrets codes en dur, injections, fonctions trop complexes, absence de gestion d'erreurs, etc.).
+
+C'est dans ce contexte qu'a ete concu \textbf{PRLens}, l'objet du present rapport~: un systeme de revue de code automatise qui s'appuie sur un grand modele de langage (\emph{Large Language Model}, LLM) pour analyser le contenu exact d'une Pull Request et produire, sans intervention humaine, des commentaires en ligne, un score de qualite chiffre, un verdict de revue formel (Approuver / Demander des changements / Commenter) et des etiquettes de classification. PRLens ne remplace pas la revue humaine~: il agit comme un premier filtre systematique, rapide et reproductible, qui traite les problemes les plus frequents et laisse au relecteur humain le soin de juger des aspects fonctionnels et architecturaux de plus haut niveau.
+
+Le projet se decompose en deux volets complementaires. Le premier est le \textbf{moteur de revue} lui-meme, deployable de deux manieres~: comme etape d'un pipeline GitHub Actions (sans serveur a heberger), ou comme serveur \emph{webhook} permanent installe une fois pour tous les depots d'une organisation. Le second volet est un \textbf{tableau de bord web} (\emph{dashboard}) qui permet a un utilisateur de se connecter avec son compte GitHub, de connecter ses depots en un clic, de configurer le comportement de la revue par depot, et de consulter l'historique et les tendances de qualite mesurees au fil du temps.
+
+Ce rapport est structure en quatre chapitres, precedes d'une presentation du cadre du projet. Le premier chapitre situe le projet dans son contexte metier, degage la problematique et la proposition de valeur, et positionne PRLens par rapport aux solutions existantes sur le marche. Le deuxieme chapitre presente les fondements technologiques mobilises --- langages, frameworks, patrons de conception --- ainsi que le cadre conceptuel retenu. Le troisieme chapitre detaille la conception de la solution~: architecture globale, modelisation des donnees, interfaces, algorithmes et securite. Le quatrieme chapitre decrit la realisation effective du systeme et sa validation, a travers les tests unitaires et un protocole d'evaluation quantitatif de la pertinence des revues produites. Le rapport se cloture par une conclusion generale qui dresse le bilan du travail accompli et ouvre sur des perspectives d'evolution.
+
+% =============================================================================
+\chapter{Presentation du cadre du projet et de l'encadrant}
+
+\section{Cadre general du projet}
+
+Le present projet a ete realise dans le cadre du cursus de Licence Appliquee en Sciences de l'Informatique de la Faculte des Sciences de Tunis (FST), au sein du Departement des Sciences de l'Informatique. Il s'inscrit dans la categorie des projets a caractere applicatif portant sur les nouvelles technologies, avec pour terrain d'application concret l'automatisation d'un processus de developpement logiciel a l'aide de l'intelligence artificielle generative.
+
+L'organisme d'accueil du projet est la \textbf{Division/Direction des Systemes d'Information (DSI)} de la FST, qui a fourni le cadre d'encadrement pedagogique et technique necessaire au bon deroulement du travail.
+
+\section{Encadrant}
+
+Le projet a ete encadre par \textbf{M.~Faouzi MOUSSA}, enseignant au sein du Departement des Sciences de l'Informatique de la FST. L'encadrement a porte a la fois sur la methodologie de conduite de projet (structuration du travail, jalons, livrables) et sur les choix techniques structurants du systeme, notamment l'architecture logicielle, l'integration avec les services externes (GitHub, Azure OpenAI) et les exigences de qualite (couverture de tests, evaluation de la pertinence des sorties du modele).
+
+\section{Periode du projet}
+
+Le developpement du projet s'est deroule durant l'annee universitaire 2025--2026. \todo{dates precises de debut et de fin du projet}
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du chapitre}
+
+Ce chapitre a situe le cadre institutionnel et humain dans lequel le projet PRLens a ete mene. Le chapitre suivant entre dans le vif du sujet en presentant le contexte metier de la revue de code automatisee, la problematique qui en decoule et la proposition de valeur de PRLens.
+
+% =============================================================================
+\chapter{Etat de l'art et fondements metiers}
+
+\section{Contexte metier du projet}
+
+\subsection{Presentation du domaine d'application}
+
+Le domaine d'application du projet est celui de l'\textbf{assurance qualite logicielle}, et plus precisement celui de la \textbf{revue de code assistee par intelligence artificielle} dans un flux de travail base sur Git et GitHub. Une Pull Request materialise une proposition de changement~: elle regroupe un ensemble de \emph{commits}, un diff (les lignes ajoutees, supprimees ou modifiees) et une conversation associee. La revue de cette PR est le moment ou l'equipe verifie que le changement propose est correct, sur, performant et coherent avec le reste du code avant de l'integrer.
+
+\subsection{Analyse des besoins et des problematiques specifiques}
+
+L'analyse du terrain met en evidence plusieurs besoins recurrents chez les equipes de developpement~:
+
+\begin{itemize}
+  \item \textbf{Rapidite de retour} --- un developpeur qui attend plusieurs heures, voire plusieurs jours, une premiere relecture perd le contexte mental de son changement et voit sa productivite baisser.
+  \item \textbf{Systematicite} --- certaines classes de problemes (secrets codes en dur, injections SQL, fonctions demesurement complexes) doivent etre detectees a chaque fois, independamment de la charge de travail ou de la fatigue du relecteur humain.
+  \item \textbf{Tracabilite} --- l'equipe a besoin d'un historique exploitable~: quel depot est le plus souvent en cause, quel type de probleme revient, la qualite du code progresse-t-elle dans le temps~?
+  \item \textbf{Faible cout d'adoption} --- une solution qui exige une reconfiguration lourde de l'infrastructure existante peine a etre adoptee par des equipes deja tres sollicitees.
+\end{itemize}
+
+\section{Problematique metier}
+
+\subsection{Identification des principaux defis}
+
+La problematique centrale du projet peut se formuler ainsi~: \emph{comment fournir, de maniere automatique et systematique, une premiere revue de qualite professionnelle sur chaque Pull Request GitHub, sans imposer de contrainte d'infrastructure lourde et en laissant a l'equipe le controle fin du comportement de cette revue~?}
+
+Cette problematique se decompose en plusieurs defis techniques et metiers~:
+
+\begin{enumerate}
+  \item Analyser un diff de maniere suffisamment fine pour produire des commentaires \emph{sur la ligne exacte concernee}, et non une observation generale peu actionnable.
+  \item Produire un verdict et un score reproductibles a partir d'une source par nature non deterministe (un LLM), afin que le resultat reste exploitable en pratique (etiquetage, blocage de fusion, etc.).
+  \item Permettre a chaque equipe de personnaliser le comportement de la revue (langages cibles, fichiers exclus, seuils de score, relecteurs a affecter) sans reecrire de code.
+  \item S'integrer nativement dans deux contextes d'usage distincts~: celui d'une equipe qui prefere un pipeline sans etat (\emph{GitHub Actions}), et celui d'une equipe qui prefere une installation centralisee, sans configuration par depot (\emph{application GitHub}).
+\end{enumerate}
+
+\subsection{Objectifs vises par le projet}
+
+Les objectifs retenus pour le projet sont les suivants~:
+
+\begin{itemize}
+  \item Concevoir un moteur de revue capable de detecter des problemes de \textbf{securite}, de \textbf{qualite}, de \textbf{performance} et de \textbf{documentation} dans un diff de Pull Request.
+  \item Produire pour chaque revue un \textbf{score chiffre} (0 a 100) et un \textbf{verdict formel} exploitable directement par GitHub (Approve / Request changes / Comment).
+  \item Offrir deux modes de deploiement --- \emph{GitHub Actions} et \emph{webhook applicatif} --- partageant le meme moteur de revue.
+  \item Fournir un \textbf{tableau de bord web} permettant la connexion des depots, la configuration par depot et la consultation de l'historique des revues, sans passer par un fichier de configuration.
+  \item Valider objectivement la pertinence des revues produites au moyen d'un protocole d'evaluation quantitatif, et non uniquement par des tests unitaires.
+\end{itemize}
+
+\section{Proposition de valeur}
+
+\subsection{Valeur ajoutee pour les parties prenantes}
+
+PRLens apporte une valeur differenciee a trois categories d'acteurs~:
+
+\begin{itemize}
+  \item \textbf{Le developpeur} recoit un retour en quelques dizaines de secondes apres l'ouverture ou la mise a jour de sa Pull Request, avec des suggestions de correction concretes plutot qu'une simple liste de reproches.
+  \item \textbf{Le responsable technique / lead} dispose d'un tableau de bord centralise donnant une vue d'ensemble de la sante du code sur l'ensemble des depots geres, avec un historique exploitable pour identifier les tendances.
+  \item \textbf{L'organisation} reduit le temps humain consacre a la relecture des problemes les plus frequents et documentes, et gagne en systematicite sur des categories de risques sensibles comme la securite.
+\end{itemize}
+
+\subsection{Avantages et benefices attendus}
+
+\begin{itemize}
+  \item Reduction du delai moyen entre l'ouverture d'une Pull Request et son premier retour.
+  \item Detection systematique d'une classe de vulnerabilites connues, alignee sur le referentiel \emph{OWASP Top 10}.
+  \item Zero configuration necessaire pour une equipe qui installe l'application GitHub~: chaque nouveau depot rattache est revu automatiquement.
+  \item Personnalisation fine du comportement, par depot, via le tableau de bord ou via un fichier de configuration versionne dans le depot lui-meme.
+\end{itemize}
+
+\section{Etude de marche}
+
+\subsection{Analyse de l'environnement concurrentiel}
+
+Le marche des outils de revue de code assistee par intelligence artificielle a connu une expansion rapide, portee par la generalisation des LLM. Le tableau~\ref{tab:marche} positionne PRLens par rapport a quelques categories d'outils representatives du marche.
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{3.1cm}L{4.2cm}L{6.6cm}}
+\toprule
+\textbf{Categorie} & \textbf{Exemples de solutions} & \textbf{Positionnement de PRLens} \\
+\midrule
+Analyse statique classique & SonarQube, ESLint, Pylint & PRLens complete l'analyse statique par une comprehension semantique du changement, au-dela des regles syntaxiques fixes. \\
+Assistants de revue bases sur un LLM (SaaS) & CodeRabbit, GitHub Copilot (revue de PR) & PRLens propose une architecture ouverte, auto-hebergeable, avec deux modes de deploiement et un modele de scoring/verdict transparent et configurable. \\
+Scanners de securite dedies & Snyk Code, Semgrep & PRLens integre la securite comme une des quatre dimensions analysees (avec qualite, performance, documentation), au sein d'un seul flux de revue unifie. \\
+\bottomrule
+\end{tabular}
+\caption{Positionnement de PRLens par rapport aux categories d'outils existantes}
+\label{tab:marche}
+\end{table}
+
+\subsection{Opportunites et menaces potentielles}
+
+\textbf{Opportunites} --- l'adoption massive des LLM de nouvelle generation (GPT-4o et successeurs) rend desormais accessible, a cout raisonnable, une comprehension fine du code source qui etait auparavant reservee a des systemes bases sur des regles rigides. L'ecosysteme GitHub (Actions, GitHub Apps, API REST) fournit par ailleurs des points d'integration matures et bien documentes.
+
+\textbf{Menaces} --- la dependance a un fournisseur de LLM externe (ici Azure OpenAI) introduit un risque de disponibilite et de cout variable. Le caractere non deterministe des LLM impose egalement une vigilance constante sur le taux de faux positifs, sous peine de degrader la confiance des utilisateurs dans l'outil.
+
+\section{Backlog metier}
+
+\subsection{Fonctionnalites et exigences metier}
+
+Le backlog metier du projet a ete organise autour de deux grands ensembles fonctionnels~: le \textbf{moteur de revue} et le \textbf{tableau de bord}. Le tableau~\ref{tab:backlog} en presente une synthese priorisee.
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{1.6cm}L{9.4cm}L{2.3cm}}
+\toprule
+\textbf{Priorite} & \textbf{Fonctionnalite} & \textbf{Module} \\
+\midrule
+Haute & Analyser un diff de PR et produire des commentaires en ligne classes par severite & Moteur \\
+Haute & Calculer un score de qualite et un verdict de revue formel & Moteur \\
+Haute & Authentifier l'application aupres de GitHub (App ou jeton personnel) & Moteur \\
+Haute & Executer la revue depuis un pipeline GitHub Actions & Moteur \\
+Haute & Executer la revue depuis un serveur webhook permanent & Moteur \\
+Moyenne & Permettre la connexion des utilisateurs par OAuth GitHub & Dashboard \\
+Moyenne & Connecter / deconnecter un depot depuis l'interface & Dashboard \\
+Moyenne & Configurer par depot les seuils, langages et fichiers exclus & Dashboard \\
+Moyenne & Afficher l'historique des revues et les tendances de score & Dashboard \\
+Basse & Suspendre temporairement la revue d'un depot (bascule actif/inactif) & Dashboard \\
+Basse & Affecter automatiquement des relecteurs selon le type de probleme & Moteur \\
+Basse & Offrir a l'exploitant une vue d'ensemble du deploiement (comptes, depots, taux d'echec) & Dashboard \\
+\bottomrule
+\end{tabular}
+\caption{Backlog metier synthetique du projet PRLens}
+\label{tab:backlog}
+\end{table}
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du chapitre}
+
+Ce chapitre a etabli le contexte metier du projet, la problematique qu'il adresse et la valeur qu'il apporte, en le situant par rapport aux solutions existantes sur le marche. Le chapitre suivant presente le socle technologique et conceptuel retenu pour repondre a ce cahier des charges.
+
+% =============================================================================
+\chapter{Fondements technologiques et cadre conceptuel du projet}
+
+\section{Revue de la litterature}
+
+\subsection{Synthese des travaux existants}
+
+L'usage de modeles de langage pour l'analyse de code source s'appuie sur des travaux de recherche en traitement automatique du langage applique au code (\emph{code intelligence}), dont les modeles de la famille GPT constituent une des realisations les plus abouties a ce jour. Ces modeles, entraines sur de tres larges corpus incluant du code source, sont capables d'inferer l'intention d'un extrait de code, d'identifier des anomalies et de proposer des corrections en langage naturel --- une capacite directement exploitee par PRLens.
+
+\subsection{Principales avancees mobilisees}
+
+Deux avancees techniques recentes rendent ce projet possible dans des conditions de cout et de fiabilite raisonnables~:
+
+\begin{itemize}
+  \item Le \textbf{mode de sortie structuree} (JSON strict) propose par les API de LLM modernes, qui permet de contraindre le modele a repondre selon un schema exploitable programmatiquement, plutot que sous forme de texte libre a analyser.
+  \item Les \textbf{applications GitHub} (\emph{GitHub Apps}), qui offrent un modele d'authentification et d'autorisation granulaire (jeton d'installation a duree de vie courte, permissions scopees par depot) mieux adapte a un usage machine-a-machine qu'un jeton personnel classique.
+\end{itemize}
+
+\section{Contexte informatique}
+
+\subsection{Concepts fondamentaux}
+
+Le projet repose sur trois familles de concepts informatiques~: (i) l'\textbf{integration continue} et les evenements Git (PR ouverte, mise a jour, fermeture), (ii) les \textbf{API REST} et l'authentification par jeton pour dialoguer avec GitHub et avec le fournisseur de LLM, et (iii) l'\textbf{architecture web classique client/serveur} pour le tableau de bord, avec une authentification federee (OAuth 2.0).
+
+\subsection{Langages et technologies retenus}
+
+Le tableau~\ref{tab:techno} recapitule la pile technologique du projet.
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{3.4cm}L{4.3cm}L{6.2cm}}
+\toprule
+\textbf{Couche} & \textbf{Technologie} & \textbf{Role} \\
+\midrule
+Langage --- moteur & Python 3.11 & Implementation du pipeline de revue \\
+Framework serveur & FastAPI & Serveur webhook et API REST du tableau de bord \\
+Client GitHub & PyGithub & Acces a l'API REST de GitHub (PR, commentaires, labels) \\
+Client LLM & OpenAI SDK (Azure OpenAI) & Appels au modele \code{gpt-4o} avec sortie JSON structuree \\
+Validation de donnees & Pydantic v2 & Modelisation stricte des entites (PR, commentaire, resultat) \\
+Persistance & PostgreSQL + SQLAlchemy (ORM) & Stockage des utilisateurs, installations et revues \\
+Serveur ASGI & Uvicorn & Execution du serveur FastAPI \\
+Langage --- interface & TypeScript & Typage statique du tableau de bord \\
+Framework interface & React 19 + Vite & Interface utilisateur du tableau de bord (SPA) \\
+Routage cote client & React Router & Navigation entre les pages du tableau de bord \\
+Authentification & OAuth 2.0 (GitHub) + JWT & Connexion utilisateur et securisation de l'API \\
+Conteneurisation & Docker & Empaquetage de l'action GitHub Actions \\
+\bottomrule
+\end{tabular}
+\caption{Pile technologique du projet PRLens}
+\label{tab:techno}
+\end{table}
+
+\section{Outils et methodologies}
+
+\subsection{Environnements de developpement}
+
+Le developpement a ete mene sous un environnement de developpement integre (EDI) supportant nativement Python et TypeScript, avec integration Git. Le depot est heberge sur GitHub, qui sert egalement de cible d'integration fonctionnelle du produit lui-meme (PRLens revoit ses propres Pull Requests en conditions reelles).
+
+\subsection{Patrons de conception mobilises}
+
+Plusieurs patrons de conception structurent le code du moteur de revue~:
+
+\begin{itemize}
+  \item \textbf{Facade} --- la classe \code{Agent} expose une methode unique (\code{run}) qui masque l'orchestration interne (recuperation de la PR, analyse, publication) aux deux points d'entree (mode Actions et mode webhook).
+  \item \textbf{Strategy} --- l'authentification GitHub (jeton personnel ou application GitHub) est selectionnee dynamiquement selon les variables d'environnement presentes, sans modifier le code appelant.
+  \item \textbf{Fan-out / Worker pool} --- l'analyseur distribue un appel au LLM par fichier modifie sur un \code{ThreadPoolExecutor}, paralleisant l'analyse tout en respectant une limite configurable de travailleurs simultanes (\code{max_workers}).
+  \item \textbf{Repository implicite} --- la couche SQLAlchemy isole le reste de l'application du detail du schema relationnel, via des modeles declaratifs (\code{User}, \code{Installation}, \code{Review}, \code{ReviewComment}).
+\end{itemize}
+
+\subsection{Organisation du travail}
+
+Le developpement a ete mene de maniere iterative, chaque increment portant sur un module fonctionnel verifiable independamment (authentification GitHub, analyseur, publication, puis tableau de bord), avec executions regulieres de la suite de tests automatises comme filet de securite.
+
+\section{Cadre conceptuel}
+
+Le cadre conceptuel retenu pour le projet repose sur une separation nette entre trois responsabilites~: \textbf{recuperer} l'etat d'une Pull Request depuis GitHub, \textbf{analyser} ce contenu a l'aide d'un LLM pour produire des constats structures, et \textbf{publier} le resultat de cette analyse sous forme exploitable par l'humain (commentaires, score, verdict, etiquettes). Cette separation, detaillee au chapitre suivant, permet de reutiliser integralement le meme moteur d'analyse dans les deux modes de deploiement du projet.
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du chapitre}
+
+Ce chapitre a presente le socle technologique et les patrons de conception qui structurent PRLens. Le chapitre suivant detaille la conception de la solution a partir de ce cadre~: architecture globale, modelisation des donnees et interfaces.
+
+% =============================================================================
+\chapter{Conception de la solution informatique}
+
+\section{Introduction a la conception}
+
+Ce chapitre presente la conception detaillee de PRLens, en partant des besoins degages au chapitre~1 et du cadre technologique pose au chapitre~2. L'objectif de la phase de conception a ete de definir une architecture capable de servir un meme pipeline de revue depuis deux points d'entree distincts, tout en isolant proprement la couche de persistance necessaire au tableau de bord.
+
+\section{Analyse des besoins}
+
+\subsection{Synthese des besoins}
+
+Les besoins fonctionnels retenus pour la conception sont les suivants~: analyser un diff de Pull Request par langage et par fichier~; calculer un score et un verdict deterministes a partir de constats produits par un LLM~; publier des commentaires en ligne, un resume, des etiquettes et un verdict formel sur GitHub~; permettre la connexion et la configuration des depots via une interface web~; et journaliser chaque revue effectuee pour restitution ulterieure.
+
+\subsection{Priorisation}
+
+La priorisation reprend le backlog du tableau~\ref{tab:backlog}~: le moteur de revue (recuperation, analyse, publication) constitue le socle indispensable, le tableau de bord et ses fonctionnalites de configuration/historique en sont des extensions a valeur ajoutee.
+
+\section{Architecture globale du systeme}
+
+\subsection{Vue d'ensemble}
+
+PRLens partage un unique pipeline de revue (la classe \code{Agent}) derriere deux points d'entree. En mode \emph{Actions}, \code{main.py} l'execute une fois par evenement de Pull Request, a l'interieur d'un conteneur Docker. En mode \emph{webhook}, un serveur FastAPI invoque ce meme pipeline a chaque evenement recu, et persiste en plus le resultat pour le tableau de bord. La figure~\ref{fig:archi} illustre ce flux.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=8mm and 12mm,
+  box/.style={draw=prlensblue,thick,rounded corners=2pt,fill=prlensblue!6,
+    text width=3.5cm,align=center,minimum height=1cm,font=\small},
+  wide/.style={draw=prlensblue,thick,rounded corners=2pt,fill=prlensblue!12,
+    text width=8.4cm,align=center,minimum height=1cm,font=\small},
+  arr/.style={-{Latex[length=2.2mm]},thick,prlensgrey}
+]
+  \node[wide] (event) {Evenement GitHub Pull Request (opened / synchronize / reopened)};
+  \node[box, below left=of event] (actions) {Mode Actions\\\texttt{main.py} (Docker)};
+  \node[box, below right=of event] (webhook) {Mode Webhook\\FastAPI \texttt{/webhook}\\(signature HMAC verifiee)};
+  \node[wide, below=16mm of event] (agent) {\texttt{Agent.run} --- orchestration du pipeline};
+  \node[box, below left=12mm and 12mm of agent] (fetch) {\texttt{PRFetcher}\\Recuperation PR + diffs};
+  \node[box, below=12mm of agent] (analyze) {\texttt{Analyzer}\\Filtrage langage / exclusions};
+  \node[box, below right=12mm and 12mm of agent] (llm) {\texttt{LLMClient}\\Azure OpenAI GPT-4o};
+  \node[wide, below=12mm of analyze] (aggregate) {Agregation --- score, verdict, \texttt{ReviewResult}};
+  \node[wide, below=8mm of aggregate] (publish) {\texttt{PRPublisher}~: labels, commentaires, verdict, relecteurs};
+  \node[box, below=8mm of publish, fill=prlensblue!20] (db) {PostgreSQL\\(mode webhook uniquement)};
+
+  \draw[arr] (event) -- (actions);
+  \draw[arr] (event) -- (webhook);
+  \draw[arr] (actions) |- (agent);
+  \draw[arr] (webhook) |- (agent);
+  \draw[arr] (agent) -- (fetch);
+  \draw[arr] (agent) -- (analyze);
+  \draw[arr] (agent) -- (llm);
+  \draw[arr] (fetch) |- (aggregate);
+  \draw[arr] (analyze) |- (aggregate);
+  \draw[arr] (llm) |- (aggregate);
+  \draw[arr] (aggregate) -- (publish);
+  \draw[arr] (publish) -- (db);
+\end{tikzpicture}}
+\caption{Architecture globale du pipeline de revue PRLens}
+\label{fig:archi}
+\end{figure}
+
+\subsection{Composants principaux}
+
+\begin{itemize}
+  \item \textbf{\code{PRFetcher}} --- recupere la Pull Request et ses fichiers modifies via PyGithub, et les convertit en modeles internes (\code{PR}, \code{FileChange}).
+  \item \textbf{\code{Analyzer}} --- filtre les fichiers par langage cible et par motif d'exclusion, puis distribue un appel LLM par fichier restant sur un \code{ThreadPoolExecutor}.
+  \item \textbf{\code{LLMClient}} --- encapsule l'appel a l'API Azure OpenAI et impose un contrat de sortie JSON strict (type de probleme, severite, ligne, message, suggestion).
+  \item \textbf{Agregation} --- calcule le score global a partir des severites remontees et determine le verdict (voir~\S\ref{sec:scoring}).
+  \item \textbf{\code{PRPublisher}} --- traduit le resultat agrege en actions GitHub~: etiquettes, commentaire de synthese, commentaires en ligne, soumission de la revue, affectation de relecteurs.
+  \item \textbf{Serveur FastAPI (\code{prlens/webhook/app.py})} --- en mode webhook, recoit et verifie les evenements, invoque l'agent en tache de fond, et expose en plus l'API REST consommee par le tableau de bord.
+\end{itemize}
+
+\section{Modelisation des donnees}
+
+\subsection{Schema de la base de donnees}
+
+La persistance necessaire au tableau de bord repose sur quatre entites principales~: \code{User}, \code{Installation}, \code{Review} et \code{ReviewComment}. La figure~\ref{fig:erd} en presente le schema relationnel.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=14mm and 20mm,
+  entity/.style={draw=prlensblue,thick,rectangle split,rectangle split parts=2,
+    rectangle split part fill={prlensblue!18,white},align=left,font=\footnotesize,
+    text width=4.3cm,rounded corners=1pt},
+  rel/.style={-{Latex[length=2.2mm]},thick,prlensgrey}
+]
+  \node[entity] (user) {
+    \textbf{User}
+    \nodepart{two}
+    id (PK)\\
+    github\_id (unique)\\
+    name, handle\\
+    initials, avatar\_url\\
+    role\\
+    github\_token
+  };
+  \node[entity, right=of user] (inst) {
+    \textbf{Installation}
+    \nodepart{two}
+    id (PK)\\
+    user\_id (FK)\\
+    repo\_name, owner\\
+    visibility, active\\
+    connected\\
+    min\_severity, languages\\
+    approve\_threshold\\
+    changes\_threshold\\
+    excluded\_files\\
+    reviewer\_map
+  };
+  \node[entity, right=of inst] (review) {
+    \textbf{Review}
+    \nodepart{two}
+    id (PK)\\
+    installation\_id (FK)\\
+    pr\_number, pr\_title\\
+    score, status\\
+    reviewed\_at
+  };
+  \node[entity, below=of review] (comment) {
+    \textbf{ReviewComment}
+    \nodepart{two}
+    id (PK)\\
+    review\_id (FK)\\
+    file\_path, line\\
+    type, severity\\
+    message, suggestion
+  };
+
+  \draw[rel] (user) -- node[above,font=\scriptsize]{1..N} (inst);
+  \draw[rel] (inst) -- node[above,font=\scriptsize]{1..N} (review);
+  \draw[rel] (review) -- node[right,font=\scriptsize]{1..N} (comment);
+\end{tikzpicture}}
+\caption{Modele de donnees relationnel (extrait des modeles SQLAlchemy)}
+\label{fig:erd}
+\end{figure}
+
+Un utilisateur (\code{User}) possede plusieurs installations (\code{Installation}), chacune representant le rattachement d'un depot GitHub a un compte, avec ses parametres de revue propres. Chaque installation accumule un historique de revues (\code{Review}), et chaque revue detaille ses constats individuels (\code{ReviewComment}). La contrainte d'unicite portant sur le couple (\code{user_id}, \code{repo_name}) garantit qu'un meme utilisateur ne connecte pas deux fois le meme depot.
+
+L'attribut \code{role} de \code{User} prend l'une de deux valeurs, \emph{user} ou \emph{admin}, et constitue le seul mecanisme d'autorisation du systeme~: il conditionne l'acces a l'espace d'administration decrit au~\S\ref{sec:admin}. Un administrateur reste par ailleurs un utilisateur ordinaire --- il possede ses propres installations et son propre tableau de bord~; le role \emph{ajoute} des droits de consultation, il n'en retire aucun.
+
+\subsection{Contraintes de suppression}
+
+Les relations sont declarees avec \texttt{cascade="all, delete-orphan"}~: la suppression d'un utilisateur entraine celle de ses installations, et la suppression (deconnexion) d'une installation entraine celle de son historique de revues, garantissant l'absence d'enregistrements orphelins.
+
+\section{Interfaces utilisateur}
+
+\subsection{Structure du tableau de bord}
+
+Le tableau de bord est une application web monopage (\emph{SPA}) React organisee autour d'une barre laterale de navigation persistante et d'une zone de contenu principale. Les pages principales sont~: la page d'accueil (\emph{landing page}), le tableau de bord (statistiques, tendances), la page de connexion de depots, la page de detail d'un depot (parametres, historique), l'espace d'administration (\S\ref{sec:admin}, reserve aux administrateurs) et les pages statiques (documentation, mentions legales).
+
+\subsection{Parcours d'utilisation type}
+
+La figure~\ref{fig:sequence} illustre le parcours complet d'un utilisateur, de la connexion jusqu'a la reception d'une revue automatique sur une Pull Request qu'il a ouverte sur un depot connecte.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\footnotesize,
+  actor/.style={draw=prlensblue,thick,rounded corners=1pt,fill=prlensblue!10,
+    minimum width=2.6cm,minimum height=0.8cm,align=center},
+  lifeline/.style={dashed,prlensgrey},
+  msg/.style={-{Latex[length=2mm]},thick},
+]
+  \def\dx{3.1cm}
+  \node[actor] (u) at (0,0) {Utilisateur};
+  \node[actor] (fe) at (\dx,0) {Dashboard\\(React)};
+  \node[actor] (be) at (2*\dx,0) {API FastAPI};
+  \node[actor] (gh) at (3*\dx,0) {GitHub};
+
+  \foreach \n in {u,fe,be,gh} {
+    \draw[lifeline] (\n.south) -- ++(0,-8.6cm);
+  }
+
+  \draw[msg] (0,-1.0) -- node[above,font=\tiny]{Se connecter} (\dx,-1.0);
+  \draw[msg] (\dx,-1.6) -- node[above,font=\tiny]{\texttt{GET /auth/github}} (2*\dx,-1.6);
+  \draw[msg] (2*\dx,-2.2) -- node[above,font=\tiny]{Redirection OAuth} (3*\dx,-2.2);
+  \draw[msg] (3*\dx,-2.8) -- node[above,font=\tiny]{Callback + code} (2*\dx,-2.8);
+  \draw[msg] (2*\dx,-3.4) -- node[above,font=\tiny]{Jeton de session (JWT)} (\dx,-3.4);
+  \draw[msg] (\dx,-4.0) -- node[above,font=\tiny]{Connecter un depot} (2*\dx,-4.0);
+  \draw[msg] (2*\dx,-4.6) -- node[above,font=\tiny]{\texttt{POST /api/repos/\{name\}/enable}} (3*\dx,-4.6);
+  \draw[msg] (0,-5.6) -- node[above,font=\tiny]{Ouvre une Pull Request} (3*\dx,-5.6);
+  \draw[msg] (3*\dx,-6.2) -- node[above,font=\tiny]{\texttt{POST /webhook}} (2*\dx,-6.2);
+  \draw[msg] (2*\dx,-6.8) -- node[above,font=\tiny]{Analyse (Agent.run, tache de fond)} (2*\dx,-7.3);
+  \draw[msg] (2*\dx,-7.6) -- node[above,font=\tiny]{Publication du resultat} (3*\dx,-7.6);
+  \draw[msg] (3*\dx,-8.2) -- node[above,font=\tiny]{Commentaires + verdict visibles} (0,-8.2);
+\end{tikzpicture}}
+\caption{Diagramme de sequence --- connexion, configuration et revue d'une Pull Request}
+\label{fig:sequence}
+\end{figure}
+
+\subsection{Choix d'ergonomie}
+
+L'authentification s'appuie exclusivement sur GitHub (OAuth), evitant a l'utilisateur la creation d'un compte et d'un mot de passe supplementaires. La bascule \emph{actif / inactif} par depot permet de suspendre les revues sans perdre l'historique deja accumule, un choix ergonomique motive par le besoin d'essais temporaires (par exemple pendant une migration de code volumineuse).
+
+\section{Espace d'administration}
+\label{sec:admin}
+
+\subsection{Motivation}
+
+Toutes les vues decrites jusqu'ici sont \emph{cloisonnees par utilisateur}~: \code{/api/stats}, \code{/api/repos} et \code{/api/reviews} ne renvoient que les donnees rattachees au compte appelant. Cette propriete est necessaire --- un utilisateur n'a pas a voir les depots d'un autre --- mais elle a une consequence structurelle~: \emph{personne} ne dispose d'une vue de l'etat global du deploiement. Or certains signaux ne sont observables qu'a cette echelle. Une remontee du taux d'echec des revues sur des depots \emph{sans lien entre eux} et appartenant a des utilisateurs differents ne traduit pas une degradation du code relu, mais une defaillance du service LLM sous-jacent~; aucun tableau de bord individuel ne peut, par construction, faire apparaitre cette correlation.
+
+L'espace d'administration repond a ce besoin~: il expose, sous \code{/api/admin}, les memes donnees agregees a l'echelle du deploiement entier.
+
+\subsection{Contenu et acces}
+
+L'espace regroupe quatre vues~: (i)~des indicateurs globaux (nombre de comptes, de depots connectes et actifs, de revues executees, et nombre de revues \emph{en echec} exprime aussi en proportion des executions)~; (ii)~la liste des comptes, avec pour chacun le nombre de depots, le nombre de revues et la date de la derniere revue, et une page de detail par utilisateur~; (iii)~la liste exhaustive des installations, un enregistrement par couple (utilisateur, depot)~; (iv)~le flux global des revues, filtrable sur les seules executions en echec. La vue~(ii) constitue le principal outil de support~: la question \og pourquoi PRLens ne relit-il pas mon depot~? \fg{} se resout le plus souvent en constatant que le depot n'est pas connecte, ou qu'il a ete mis en pause.
+
+L'acces est gouverne par une dependance FastAPI (\code{require_admin}) qui verifie l'attribut \code{role} de l'appelant et repond \texttt{403} dans le cas contraire. Deux proprietes de conception meritent d'etre soulignees~:
+
+\begin{itemize}
+  \item \textbf{Le role est relu en base a chaque requete}, et non porte comme revendication (\emph{claim}) dans le JWT de session. Un jeton emis alors que l'utilisateur etait administrateur cesse donc d'ouvrir ces routes des la revocation du role, et non a l'expiration du jeton --- soit jusqu'a trente jours plus tard.
+  \item \textbf{Le masquage du lien dans l'interface n'est pas le controle d'acces.} La barre laterale n'affiche l'entree \emph{Admin} qu'aux administrateurs, et une saisie manuelle de l'URL \code{/admin} redirige l'utilisateur ordinaire vers son propre tableau de bord~; ces deux mecanismes sont purement ergonomiques. La verification qui fait autorite est celle du serveur.
+\end{itemize}
+
+\subsection{Attribution du role et principe de moindre privilege}
+
+L'espace d'administration est \textbf{en lecture seule}~: il rend compte de l'etat des depots des autres utilisateurs, mais ne permet ni de les reconfigurer, ni de les deconnecter, ni de promouvoir un compte. Ce choix est deliberatement restrictif. Une interface d'administration capable d'\emph{ecrire} --- et a plus forte raison, capable d'accorder le role d'administrateur --- transformerait la compromission d'une seule session privilegiee, ou un unique defaut dans la verification du role, en une escalade de privileges durable.
+
+L'attribution du role se fait donc \emph{hors bande}, par un script d'administration (\code{scripts/set_admin.py}) execute par une personne disposant deja d'un acces a la base de donnees~; le script refuse par ailleurs de retrograder le dernier administrateur restant. Aucun point d'acces de l'API ne modifie \code{role}.
+
+\subsection{Evolution du schema en production}
+
+Le projet ne dispose pas d'outil de migration de schema (une limite reprise en conclusion generale), et \code{create_all} ne cree que les tables manquantes~: il ne modifie jamais une table existante. Ajouter \code{role} au modele n'aurait donc eu aucun effet sur une base deja deployee, dont chaque requete aurait ensuite echoue sur une colonne absente. La colonne est par consequent ajoutee au demarrage par une instruction \code{ALTER TABLE} idempotente, dont la valeur par defaut retro-remplit les comptes existants a \emph{user}~: le deploiement de cette fonctionnalite ne promeut silencieusement personne.
+
+\section{Algorithmes et methodes}
+
+\subsection{Analyse parallele des fichiers}
+
+Pour chaque fichier retenu par le filtre de langage/exclusion, l'analyseur soumet un appel independant au LLM. Ces appels sont distribues sur un \code{ThreadPoolExecutor} dont la taille est bornee par le parametre \code{max_workers} (5 par defaut), ce qui borne le nombre de requetes simultanees envoyees au fournisseur de LLM tout en parallelisant l'analyse d'une Pull Request touchant plusieurs fichiers.
+
+\subsection{Calcul du score et du verdict}
+\label{sec:scoring}
+
+Le score de qualite est calcule sur une echelle de 0 a 100, par penalites cumulees selon la severite de chaque constat remonte~: \(-25\) points par probleme critique, \(-10\) par erreur, \(-4\) par avertissement et \(-1\) par information. Le verdict final est ensuite derive de ce score et de la presence ou non de problemes critiques, selon la logique presentee au tableau~\ref{tab:verdict}.
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{6.2cm}L{2.8cm}L{4.8cm}}
+\toprule
+\textbf{Condition} & \textbf{Verdict} & \textbf{Parametre} \\
+\midrule
+Score strictement superieur au seuil ET aucun probleme critique & Approve & \code{approve_threshold} (80 par defaut) \\
+Score inferieur au seuil OU au moins un probleme critique & Request changes & \code{changes_threshold} (50 par defaut) \\
+Cas intermediaire & Comment & --- \\
+\bottomrule
+\end{tabular}
+\caption{Regles de decision du verdict de revue}
+\label{tab:verdict}
+\end{table}
+
+\subsection{Gestion des echecs partiels}
+
+Lorsque l'analyse d'un ou plusieurs fichiers echoue (erreur reseau, reponse LLM non conforme au schema attendu), PRLens distingue un etat \code{Incomplete} (une partie des fichiers a pu etre analysee) d'un etat \texttt{Total failure} (aucun fichier n'a pu etre analyse), plutot que de faire echouer silencieusement l'ensemble de la revue.
+
+\section{Securite et confidentialite}
+
+\subsection{Strategies de securite mises en place}
+
+\begin{itemize}
+  \item \textbf{Verification de signature webhook} --- chaque requete recue sur \code{/webhook} est verifiee par comparaison HMAC-SHA256 de l'en-tete \code{X-Hub-Signature-256} avec le secret partage \code{GITHUB_WEBHOOK_SECRET}~; toute requete non conforme est rejetee.
+  \item \textbf{Jetons a duree de vie courte} --- l'authentification en tant qu'application GitHub repose sur un JWT signe avec la cle privee de l'application, echange contre un jeton d'installation renouvele automatiquement avant expiration.
+  \item \textbf{Session utilisateur sans cookie inter-domaine} --- l'API et le tableau de bord pouvant etre servis sur des domaines distincts, l'authentification utilisateur repose sur un JWT de session transmis en en-tete \texttt{Authorization: Bearer}, et non sur un cookie.
+  \item \textbf{Cle de signature obligatoire en production} --- \code{SESSION_SECRET} doit etre definie et identique sur toutes les instances du serveur~; en son absence, une cle aleatoire par processus est utilisee et un avertissement est journalise au demarrage.
+  \item \textbf{Autorisation par role, verifiee cote serveur} --- l'acces a l'espace d'administration (\S\ref{sec:admin}) est conditionne au role stocke en base, relu a chaque requete et jamais porte par le jeton de session. Le role s'obtient exclusivement hors bande~; aucun point d'acces ne le modifie, de sorte qu'une session privilegiee compromise ne peut pas en creer d'autres.
+\end{itemize}
+
+\subsection{Protection des donnees sensibles}
+
+La cle privee de l'application GitHub est manipulee sous forme encodee en base64 dans les environnements conteneurises (les fichiers \code{.pem} etant exclus du depot et de l'image Docker), et jamais journalisee en clair. Les jetons GitHub des utilisateurs sont conserves cote serveur uniquement, jamais transmis au client.
+
+\section{Scenarios de cas d'utilisation}
+
+Le tableau~\ref{tab:cas} synthetise les principaux cas d'utilisation identifies pour les deux acteurs du systeme.
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{4.4cm}L{9.6cm}}
+\toprule
+\textbf{Acteur} & \textbf{Cas d'utilisation} \\
+\midrule
+Developpeur & Ouvrir / mettre a jour une Pull Request et recevoir automatiquement une revue \\
+Utilisateur du tableau de bord & Se connecter avec GitHub \\
+Utilisateur du tableau de bord & Connecter / deconnecter un depot \\
+Utilisateur du tableau de bord & Configurer les parametres de revue d'un depot \\
+Utilisateur du tableau de bord & Activer / desactiver la revue d'un depot \\
+Utilisateur du tableau de bord & Consulter l'historique et les tendances de score \\
+Administrateur (exploitant) & Consulter l'etat global du deploiement~: comptes, depots connectes, taux d'echec des revues \\
+Administrateur (exploitant) & Diagnostiquer le cas d'un utilisateur (depots connectes, revues, mise en pause) \\
+Administrateur GitHub & Installer l'application GitHub sur une organisation \\
+\bottomrule
+\end{tabular}
+\caption{Principaux cas d'utilisation}
+\label{tab:cas}
+\end{table}
+
+\section{Plan de developpement}
+
+Le developpement a ete decoupe en quatre iterations fonctionnelles~: (1)~moteur de revue et authentification GitHub, valides par la suite de tests unitaires~; (2)~mode webhook et persistance des revues~; (3)~tableau de bord --- authentification OAuth et gestion des depots~; (4)~tableau de bord --- historique, statistiques et parametres avances. Chaque iteration s'est cloturee par une execution complete de la suite de tests et, pour les iterations touchant au moteur de revue, par une passe du harnais d'evaluation (chapitre~4).
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du chapitre}
+
+Ce chapitre a detaille la conception retenue pour PRLens~: une architecture partagee entre deux points d'entree, un modele de donnees relationnel simple mais suffisant, et des mecanismes de securite adaptes a un systeme qui dialogue avec des services tiers sensibles. Le chapitre suivant decrit la realisation effective de cette conception et sa validation.
+
+% =============================================================================
+\chapter{Realisation et validation}
+
+\section{Introduction a la realisation}
+
+Ce chapitre presente la mise en \oe uvre concrete de la conception decrite au chapitre~3, ainsi que le protocole de validation retenu pour s'assurer que le systeme repond effectivement au besoin. La validation de PRLens repose sur deux piliers complementaires~: une suite de tests unitaires classique portant sur la logique deterministe du systeme, et un harnais d'evaluation dedie mesurant la pertinence des revues produites par le LLM, dont le comportement est par nature non deterministe.
+
+\section{Environnement de developpement}
+
+\subsection{Outils, plateformes et langages}
+
+Le moteur de revue est developpe en Python~3.11 et expose par un serveur FastAPI execute par Uvicorn. Le tableau de bord est developpe en TypeScript avec React~19, construit par Vite. La persistance repose sur PostgreSQL, accede via l'ORM SQLAlchemy. Le mode Actions est empaquete sous forme d'image Docker declaree dans \code{action.yml}.
+
+\subsection{Justification des choix technologiques}
+
+FastAPI a ete retenu pour sa prise en charge native de la validation de donnees par Pydantic (reutilisant directement les memes modeles que le moteur de revue) et sa capacite a executer des taches de fond (\code{BackgroundTasks}) sans bloquer la reponse HTTP immediate attendue par GitHub. React et TypeScript ont ete choisis pour la robustesse du typage statique dans une interface manipulant des donnees structurees issues de l'API. PostgreSQL a ete prefere pour sa maturite et son support natif des types JSON, utilises pour stocker des listes et correspondances de configuration variables (langages cibles, correspondance de relecteurs) sans schema rigide.
+
+\section{Developpement des modules}
+
+\subsection{Le moteur de revue}
+
+Le moteur de revue est organise en quatre paquets Python~: \code{config} (chargement de \code{.aireviewer.yml} et modele \code{Settings})\allowbreak, \code{github} (authentification et acces a l'API GitHub), \code{llm} (client Azure OpenAI, analyseur parallele, prompts) et \code{models} (modeles Pydantic partages). L'annexe~A presente un exemple complet de fichier de configuration.
+
+\subsection{Le tableau de bord}
+
+Le tableau de bord est structure en pages (\code{src/pages}), composants reutilisables (\code{src/components}) et une couche d'acces a l'API typee (\code{src/lib/api.ts}) qui centralise la gestion du jeton d'authentification et le renouvellement automatique de session en cas d'expiration.
+
+\section{Tests et debogage}
+
+\subsection{Strategie de tests}
+
+La suite de tests unitaires s'execute integralement hors ligne~: tous les appels a GitHub et au fournisseur de LLM sont simules (\emph{mock}), ce qui garantit des tests rapides, deterministes et ne consommant aucun quota d'API externe. Elle couvre la configuration, le client GitHub (authentification par jeton personnel \emph{et} par application GitHub), la recuperation et la publication de PR, l'analyseur, le client LLM, l'orchestrateur (\code{Agent}) et le serveur webhook.
+
+Les tests de l'espace d'administration font exception a ce principe de simulation, et pour une raison de fond~: la regle a verifier porte precisement sur le role \emph{stocke en base}~; simuler l'utilisateur reviendrait a ne rien tester du mecanisme d'autorisation. Ces tests s'executent donc contre une base SQLite en memoire, avec des jetons de session reellement signes, de sorte que le chemin complet \og jeton, puis utilisateur, puis role, puis decision \fg{} soit exerce de bout en bout. Chaque route d'administration est verifiee sous trois angles~: appelant anonyme (\texttt{401}), utilisateur authentifie mais ordinaire (\texttt{403}), et administrateur (\texttt{200}).
+
+\subsection{Resultats obtenus}
+
+Au moment de la redaction de ce rapport, la suite compte \textbf{117 tests}, tous passants. Le tableau~\ref{tab:coverage} detaille la couverture de code par module du moteur de revue.
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{8.2cm}r@{\hskip 1.4cm}r}
+\toprule
+\textbf{Module} & \textbf{Instructions} & \textbf{Couverture} \\
+\midrule
+\code{config/settings.py} & 42 & 100\,\% \\
+\code{core/agent.py} & 24 & 100\,\% \\
+\code{github/client.py} & 111 & 95\,\% \\
+\code{github/pr_fetcher.py} & 11 & 100\,\% \\
+\code{github/pr_publisher.py} & 147 & 99\,\% \\
+\code{llm/analyzer.py} & 58 & 100\,\% \\
+\code{llm/client.py} & 18 & 100\,\% \\
+\code{llm/prompts.py} & 8 & 100\,\% \\
+\code{models/} (pr, review) & 98 & 100\,\% \\
+\midrule
+\textbf{Moteur de revue (total)} & \textbf{517} & \textbf{99\,\%} \\
+\code{webhook/app.py} (webhook + API du tableau de bord) & 499 & 52\,\% \\
+\bottomrule
+\end{tabular}
+\caption{Couverture de tests du moteur de revue par module}
+\label{tab:coverage}
+\end{table}
+
+Le moteur de revue --- c'est-a-dire la partie deterministe et critique du systeme, responsable du calcul du score et du verdict --- atteint ainsi une couverture de 99\,\%. La couche \code{webhook/app.py}, qui a fortement grossi avec l'ajout du tableau de bord (endpoints CRUD, statistiques), reste en revanche partiellement couverte~: la verification de signature, l'orchestration de la revue et l'integralite de l'espace d'administration --- regle d'autorisation comprise --- sont testees, mais la majorite des points d'acces \code{/api} cloisonnes par utilisateur ne le sont pas encore. Ce point demeure un axe d'amelioration prioritaire (voir la conclusion generale).
+
+\subsection{Processus de debogage}
+
+Le debogage s'est appuye sur l'execution ciblee de sous-ensembles de tests (\texttt{pytest -k}) et sur l'analyse de couverture ligne par ligne (\texttt{pytest --cov=prlens --cov-report=term-missing}) pour identifier les branches non exercees, notamment dans la gestion des cas d'echec partiel de l'analyseur.
+
+\section{Integration des composants}
+
+Le moteur de revue et le serveur webhook partagent un seul et meme code d'orchestration (\code{Agent.run}), ce qui garantit que les deux modes de deploiement produisent un resultat identique pour un meme contenu de Pull Request. Le tableau de bord s'integre au serveur webhook via une API REST authentifiee, sans dependance directe au code du moteur de revue.
+
+\section{Validation et verification}
+
+\subsection{Evaluation par rapport aux besoins initiaux}
+
+Au-dela des tests unitaires --- qui valident la logique deterministe du systeme --- la pertinence des revues produites par le LLM a ete validee au moyen d'un \textbf{harnais d'evaluation} dedie (paquet \code{eval/}), constitue de quinze cas de diffs construits a la main avec un resultat attendu connu. Un cas est considere reussi si le systeme retourne un constat du type attendu, a un niveau de severite au moins egal a celui attendu (ou, pour les cas dits \og propres \fg, s'il ne retourne aucun commentaire).
+
+\begin{table}[H]
+\centering
+\tablesetup
+\begin{tabular}{L{2.4cm}cc L{8.4cm}}
+\toprule
+\textbf{Categorie} & \textbf{Cas} & \textbf{Reussis} & \textbf{Ce qui est verifie} \\
+\midrule
+Securite & 5 & 5 & Secrets codes en dur, injection SQL, traversee de repertoire, injection de commande \\
+Qualite & 4 & 4 & Imbrication excessive, duplication, \code{except} nu, fonctions demesurees \\
+Propre & 3 & 2 & Absence de faux positif sur du code effectivement correct \\
+Mixte & 3 & 2 & Plusieurs types de problemes dans un meme diff (securite + qualite + performance) \\
+\midrule
+\textbf{Total} & \textbf{15} & \textbf{13} & \textbf{86,7\,\% de precision} \\
+\bottomrule
+\end{tabular}
+\caption{Resultats du harnais d'evaluation (derniere execution)}
+\label{tab:eval}
+\end{table}
+
+Ce resultat depasse le seuil de precision minimal fixe pour le projet (70\,\%). Les deux echecs restants sont des faux positifs sur des cas \og propres \fg{} limites, ou du code inhabituel mais correct declenche neanmoins un commentaire --- une limite intrinseque et documentee de l'approche par LLM (voir conclusion generale).
+
+\subsection{Conformite aux specifications}
+
+La verification de conformite a porte sur chacune des exigences du backlog metier (tableau~\ref{tab:backlog})~: les deux modes de deploiement, la configuration par depot, l'authentification OAuth et la persistance de l'historique ont ete verifies manuellement en conditions reelles, en plus des tests automatises.
+
+\section{Optimisation des performances}
+
+Le point de performance le plus sensible identifie est le temps de reponse de l'analyse d'une Pull Request touchant de nombreux fichiers. La parallelisation des appels au LLM par un pool de travailleurs bornes (\S\ref{sec:scoring}) constitue la principale optimisation mise en \oe uvre~: elle transforme un temps d'analyse lineaire en nombre de fichiers en un temps proche de \(\lceil n / \text{max\_workers} \rceil\) appels sequentiels, tout en respectant les limites de debit du fournisseur de LLM.
+
+\section{Documentation technique}
+
+La documentation technique du projet comprend un fichier \code{README.md} exhaustif (installation des deux modes de deploiement, reference de configuration, reference des variables d'environnement, description de l'API REST du tableau de bord) ainsi que la documentation de conception dans le dossier \code{docs/}. Le present rapport en constitue la synthese academique.
+
+\section{Formation et transfert de competences}
+
+\todo{Si applicable~: preciser les modalites de transfert de competences (documentation utilisateur du tableau de bord, guide d'installation pour une equipe qui adopterait PRLens, etc.)}
+
+\section*{Conclusion du chapitre}
+\addcontentsline{toc}{section}{Conclusion du chapitre}
+
+Ce chapitre a presente la realisation effective de PRLens et sa double validation~: une couverture de tests unitaires proche de l'exhaustivite sur le moteur de revue, et un protocole d'evaluation quantitatif confirmant que la pertinence des revues produites depasse largement le seuil fixe pour le projet. Les limites identifiees --- couverture partielle de la couche API du tableau de bord, faux positifs residuels sur du code atypique --- sont reprises et discutees dans la conclusion generale.
+
+% =============================================================================
+\chapter*{Conclusion generale et perspectives}
+\addcontentsline{toc}{chapter}{Conclusion generale et perspectives}
+\markboth{Conclusion generale et perspectives}{}
+
+Ce projet visait a repondre a une problematique clairement identifiee dans le monde du developpement logiciel~: la revue de code humaine, bien qu'indispensable, est un processus lent, couteux et inconstant, qui laisse regulierement passer des problemes evitables faute de temps ou d'attention disponible. PRLens y apporte une reponse concrete sous la forme d'un systeme de revue automatisee, capable d'analyser une Pull Request GitHub et de produire, en quelques dizaines de secondes et sans intervention humaine, des commentaires en ligne, un score de qualite et un verdict formel exploitables directement dans le flux de travail existant de l'equipe.
+
+Le travail realise a couvert l'ensemble de la chaine, de l'analyse du besoin metier jusqu'a la validation quantitative des resultats produits~: un moteur de revue partage entre deux modes de deploiement (pipeline sans etat ou application GitHub installee une fois pour tous les depots), un modele de scoring et de verdict deterministe construit sur une source non deterministe, un tableau de bord web complet permettant a un utilisateur de gerer l'ensemble du systeme sans jamais toucher a un fichier de configuration, et un espace d'administration donnant a l'exploitant la vue globale du deploiement qu'aucun tableau de bord individuel ne peut, par construction, fournir. La validation a ete menee sur deux plans~: une suite de 117~tests unitaires garantissant une couverture de 99\,\% du moteur de revue, et un harnais d'evaluation dedie confirmant une precision de 86,7\,\% des revues produites, nettement au-dessus du seuil de 70\,\% fixe pour le projet.
+
+Ce travail n'est cependant pas exempt de limites, dont certaines sont intrinseques a l'approche retenue. Le LLM analyse chaque fichier isolement et n'a donc pas de visibilite sur les interactions entre fichiers d'une meme Pull Request~; seules les lignes presentes dans le diff sont examinees, les problemes preexistants dans le code non modifie restant hors perimetre par construction~; enfin, la non-determinisme propre aux LLM peut occasionnellement produire un faux positif sur du code inhabituel mais correct, comme l'a quantifie le harnais d'evaluation. Sur le plan de l'ingenierie logicielle, la couche API du tableau de bord --- qui a grossi rapidement avec l'ajout des fonctionnalites de gestion des depots --- reste en retrait sur la couverture de tests par rapport au moteur de revue, meme si l'espace d'administration, ajoute en dernier, a ete livre avec la couverture de tests qui lui correspond. L'espace d'administration lui-meme est par ailleurs volontairement limite a la consultation~: il diagnostique les incidents d'exploitation mais ne les corrige pas, une remediation reelle passant encore par un acces direct a la base de donnees.
+
+Sur le plan personnel, ce projet a permis de mobiliser et de consolider des competences couvrant l'ensemble de la chaine de developpement d'une application moderne~: conception d'une architecture logicielle partagee entre plusieurs points d'entree, integration avec des API tierces sensibles (GitHub, fournisseur de LLM) et leurs mecanismes d'authentification respectifs, modelisation de donnees relationnelles, developpement d'une interface web complete en React/TypeScript, et surtout mise en place d'un protocole de validation rigoureux ne se limitant pas aux tests unitaires classiques mais mesurant egalement la qualite du resultat produit par un composant intrinsequement non deterministe.
+
+Plusieurs perspectives d'evolution se degagent naturellement de ce bilan. A court terme, il conviendrait d'etendre au reste de la couche API du tableau de bord l'effort de test deja consenti sur l'espace d'administration, en priorisant les points d'acces les plus sensibles (activation/desactivation d'un depot, deconnexion d'un depot), et de mettre en place un outil de migration de schema (Alembic) pour fiabiliser les evolutions futures de la base de donnees --- l'ajout de la colonne \code{role} a du etre gere par une instruction \code{ALTER TABLE} idempotente au demarrage, une solution qui fonctionne mais ne passe pas a l'echelle de plusieurs evolutions successives. A moyen terme, l'analyse pourrait s'etendre a un \textbf{contexte multi-fichiers}, en fournissant au LLM une vue partielle des fichiers lies au sein d'une meme Pull Request, afin de detecter des incoherences croisees. Enfin, a plus long terme, le projet pourrait s'ouvrir a d'autres fournisseurs de LLM au-dela d'Azure OpenAI, et enrichir le tableau de bord de fonctionnalites collaboratives (notifications, gestion d'equipes, tableaux de bord par organisation).
+
+% =============================================================================
+\begin{thebibliography}{99}
+\addcontentsline{toc}{chapter}{Bibliographie}
+
+\bibitem{fastapi}
+RAMIREZ, Sebastian. \emph{FastAPI Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://fastapi.tiangolo.com}
+
+\bibitem{openai}
+OPENAI. \emph{OpenAI API Reference}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://platform.openai.com/docs}
+
+\bibitem{azureopenai}
+MICROSOFT. \emph{Azure OpenAI Service Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://learn.microsoft.com/azure/ai-services/openai}
+
+\bibitem{githubrest}
+GITHUB, INC. \emph{GitHub REST API Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://docs.github.com/rest}
+
+\bibitem{githubapps}
+GITHUB, INC. \emph{Building GitHub Apps}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://docs.github.com/apps}
+
+\bibitem{pygithub}
+PYGITHUB CONTRIBUTORS. \emph{PyGithub Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://pygithub.readthedocs.io}
+
+\bibitem{pydantic}
+COLVIN, Samuel et al. \emph{Pydantic v2 Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://docs.pydantic.dev}
+
+\bibitem{sqlalchemy}
+BAYER, Michael. \emph{SQLAlchemy Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://docs.sqlalchemy.org}
+
+\bibitem{react}
+META PLATFORMS, INC. \emph{React Documentation}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://react.dev}
+
+\bibitem{owasp}
+OWASP FOUNDATION. \emph{OWASP Top 10}. [en ligne], [reference du 13 juillet 2026]. Disponible sur~: \url{https://owasp.org/www-project-top-ten}
+
+\bibitem{oauth2}
+HARDT, D. (ed.). \emph{The OAuth 2.0 Authorization Framework}. RFC~6749, Internet Engineering Task Force, octobre 2012.
+
+\bibitem{jwt}
+JONES, M., BRADLEY, J., SAKIMURA, N. \emph{JSON Web Token (JWT)}. RFC~7519, Internet Engineering Task Force, mai 2015.
+
+\end{thebibliography}
+
+% =============================================================================
+\begin{appendices}
+
+\chapter{Exemple de fichier de configuration \texttt{.aireviewer.yml}}
+
+\begin{lstlisting}[language=yaml,caption={Exemple de fichier de configuration place a la racine d'un depot},label={lst:config}]
+llm_model: gpt-4o
+min_severity: info
+
+target_languages:
+  - python
+  - javascript
+  - typescript
+  - java
+
+excluded_files:
+  - "*.lock"
+  - "*.min.js"
+  - "dist/**"
+  - "build/**"
+
+reviewers_mapping:
+  security: "IsmailMechkene"
+  quality: "team:senior-devs"
+
+max_workers: 5
+approve_threshold: 80
+changes_threshold: 50
+large_pr_threshold: 20
+\end{lstlisting}
+
+\chapter{Exemple de commentaire genere par PRLens}
+
+\begin{lstlisting}[caption={Extrait d'un commentaire en ligne genere automatiquement},label={lst:comment}]
+Severite : critique
+
+Cle API codee en dur dans le code source. Toute personne ayant
+acces au depot peut lire ce secret, qui restera en outre present
+dans l'historique Git meme apres suppression.
+
+Suggestion : charger la cle depuis une variable d'environnement,
+par exemple API_KEY = os.environ["OPENAI_API_KEY"].
+\end{lstlisting}
+
+\chapter{Extrait du modele de donnees (SQLAlchemy)}
+
+\begin{lstlisting}[language=Python,caption={Modele \texttt{Installation} (extrait simplifie)},label={lst:model}]
+class Installation(Base):
+    __tablename__ = "installations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "repo_name", name="uq_user_repo"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    repo_name: Mapped[str] = mapped_column(String(150))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    min_severity: Mapped[str] = mapped_column(String(20))
+    approve_threshold: Mapped[int] = mapped_column(Integer)
+    changes_threshold: Mapped[int] = mapped_column(Integer)
+\end{lstlisting}
+
+\chapter{Liste complete des variables d'environnement}
+
+\begingroup
+\tablesetup
+\begin{longtable}{L{5.1cm}L{2.8cm}L{6.3cm}}
+\toprule
+\textbf{Variable} & \textbf{Necessaire pour} & \textbf{Description} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Variable} & \textbf{Necessaire pour} & \textbf{Description} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\footnotesize\itshape Suite page suivante}\\
+\endfoot
+\bottomrule
+\caption{Variables d'environnement du serveur PRLens}
+\label{tab:envvars}
+\endlastfoot
+\code{AZURE_OPENAI_API_KEY} & Toujours & Cle d'API Azure OpenAI \\
+\code{AZURE_OPENAI_ENDPOINT} & Toujours & Point de terminaison Azure OpenAI \\
+\code{GITHUB_TOKEN} & Auth. par jeton & Jeton de repli en l'absence d'application GitHub \\
+\code{GITHUB_APP_ID} & Auth. par App & Identifiant de l'application GitHub \\
+\code{GITHUB_APP_INSTALLATION_ID} & Auth. par App & Identifiant d'installation de l'application \\
+\code{GITHUB_APP_PRIVATE_KEY_PATH} & Auth. par App & Chemin local vers la cle privee (\code{.pem}) \\
+\code{GITHUB_APP_PRIVATE_KEY_B64} & Auth. par App & Cle privee encodee en base64 (usage conteneur) \\
+\code{GITHUB_WEBHOOK_SECRET} & Mode webhook & Secret de signature des livraisons webhook \\
+\code{DATABASE_URL} & Tableau de bord & Chaine de connexion PostgreSQL \\
+\code{SESSION_SECRET} & Tableau de bord & Cle de signature des jetons de session \\
+\code{GITHUB_OAUTH_CLIENT_ID} & Tableau de bord & Identifiant client de l'application OAuth \\
+\code{GITHUB_OAUTH_CLIENT_SECRET} & Tableau de bord & Secret client de l'application OAuth \\
+\code{FRONTEND_URL} & Tableau de bord & Origine(s) autorisee(s) pour le CORS et la redirection post-OAuth \\
+\code{VITE_API_BASE_URL} & Tableau de bord (client) & Origine du serveur API cote client \\
+\end{longtable}
+\endgroup
+
+\chapter{Liste complete des points d'acces de l'API REST}
+
+\begingroup
+\tablesetup
+\begin{longtable}{L{1.8cm}L{5.6cm}L{6.8cm}}
+\toprule
+\textbf{Methode} & \textbf{Chemin} & \textbf{Objet} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Methode} & \textbf{Chemin} & \textbf{Objet} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\footnotesize\itshape Suite page suivante}\\
+\endfoot
+\bottomrule
+\caption{Points d'acces exposes par le serveur FastAPI}
+\label{tab:endpoints}
+\endlastfoot
+GET & \code{/} & Verification d'etat du serveur \\
+POST & \code{/webhook} & Reception des evenements GitHub (signature HMAC verifiee) \\
+GET & \code{/auth/github} & Demarrage du flux OAuth \\
+GET & \code{/auth/callback} & Retour OAuth, emission du jeton de session \\
+GET & \code{/api/user} & Utilisateur connecte \\
+GET & \code{/api/stats} & Statistiques du tableau de bord \\
+GET & \code{/api/repos} & Depots connectes \\
+GET & \code{/api/repos/{name}} & Detail d'un depot et de ses parametres \\
+GET & \code{/api/github/repos} & Depots GitHub disponibles a la connexion \\
+POST & \code{/api/repos/{name}/enable} & Connexion d'un depot \\
+DELETE & \code{/api/repos/{name}} & Deconnexion d'un depot (suppression de l'historique) \\
+PUT & \code{/api/repos/{name}/settings} & Mise a jour des parametres de revue d'un depot \\
+PUT & \code{/api/repos/{name}/active} & Activation / desactivation de la revue d'un depot \\
+GET & \code{/api/reviews} & Revues recentes, tous depots confondus \\
+GET & \code{/api/repos/{name}/reviews} & Revues d'un depot donne \\
+\end{longtable}
+\endgroup
+
+\end{appendices}
+
+% =============================================================================
+\chapter*{Resume}
+\addcontentsline{toc}{chapter}{Resume}
+
+Ce rapport presente PRLens, un systeme automatise de revue de code pour les Pull Requests GitHub, fonde sur un grand modele de langage (GPT-4o via Azure OpenAI). Le systeme analyse le diff de chaque Pull Request, detecte des problemes de securite, de qualite, de performance et de documentation, puis produit un score chiffre, un verdict formel et des commentaires en ligne publies automatiquement sur GitHub. Deux modes de deploiement sont proposes~: un pipeline GitHub Actions sans serveur a heberger, et une application GitHub installee une fois pour tous les depots d'une organisation. Cette derniere est completee par un tableau de bord web (React/TypeScript) permettant la connexion des utilisateurs par OAuth GitHub, la configuration par depot et la consultation de l'historique des revues. La solution a ete validee par une suite de 92~tests unitaires (couverture de 99\,\% du moteur de revue) et par un harnais d'evaluation quantitatif mesurant une precision de 86,7\,\% des revues produites, superieure au seuil de 70\,\% fixe pour le projet.
+
+\vspace{0.5cm}
+\noindent\textbf{Mots-cles~:} revue de code, intelligence artificielle, grand modele de langage, GitHub, automatisation, assurance qualite logicielle.
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+This report presents PRLens, an automated code review system for GitHub Pull Requests, built on a large language model (GPT-4o via Azure OpenAI). The system analyzes the diff of every Pull Request, detects security, quality, performance, and documentation issues, and produces a numeric quality score, a formal review verdict, and inline comments published automatically on GitHub. Two deployment modes are offered: a server-less GitHub Actions pipeline, and a GitHub App installed once for every repository in an organization. The latter is complemented by a web dashboard (React/TypeScript) that lets users sign in with GitHub OAuth, configure review behaviour per repository, and browse recorded review history. The solution was validated through a suite of 92 unit tests (99\% coverage of the review engine) and a quantitative evaluation harness measuring 86.7\% precision on generated reviews, above the project's 70\% target.
+
+\vspace{0.5cm}
+\noindent\textbf{Keywords:} code review, artificial intelligence, large language model, GitHub, automation, software quality assurance.
+
+\end{document}

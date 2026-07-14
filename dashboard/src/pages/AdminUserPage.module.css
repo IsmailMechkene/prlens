@@ -1,0 +1,133 @@
+.container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: calc(30px * var(--dsc)) 36px calc(60px * var(--dsc));
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.back:hover {
+  color: var(--fg-default);
+}
+/* The registry has no left arrow, and one more lucide import for a back link is not
+   worth the bundle — flip the right one. */
+.backIcon {
+  transform: rotate(180deg);
+}
+
+.panel {
+  margin-bottom: 22px;
+}
+
+.tableHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(15px * var(--dsc)) 18px;
+  border-bottom: 1px solid var(--border-default);
+}
+.tableTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.headRow {
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+.th {
+  font-weight: 600;
+  padding: 10px 18px;
+  white-space: nowrap;
+}
+.right {
+  text-align: right;
+}
+
+/* Rows lead nowhere: the admin section is read-only, and a repo page is scoped to
+   its own user's installations. */
+.staticRow {
+  border-top: 1px solid var(--border-muted);
+}
+.td {
+  padding: calc(13px * var(--dsc)) 18px;
+}
+
+.repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--fg-default);
+  white-space: nowrap;
+}
+.repoIcon {
+  color: var(--fg-subtle);
+}
+
+.prCell {
+  color: var(--fg-secondary);
+  max-width: 320px;
+}
+.prNum {
+  color: var(--fg-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin-right: 7px;
+}
+
+.on {
+  color: var(--success);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.off {
+  color: var(--fg-subtle);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--fg-muted);
+}
+
+.date {
+  color: var(--fg-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: calc(28px * var(--dsc)) 18px;
+  text-align: center;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .container {
+    padding: 24px 18px 40px;
+  }
+}

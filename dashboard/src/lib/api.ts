@@ -10,12 +10,20 @@
  */
 
 import {
+  mockAdminInstallations,
+  mockAdminReviews,
+  mockAdminStats,
+  mockAdminUsers,
   mockDashboardStats,
   mockRepos,
   mockReviews,
   mockUser,
 } from './mockData'
 import type {
+  AdminInstallation,
+  AdminReview,
+  AdminUser,
+  AdminUserDetail,
   DashboardStats,
   DisconnectResult,
   GitHubRepo,
@@ -366,5 +374,66 @@ export const api = {
     return request<DisconnectResult>(`/repos/${encodeURIComponent(name)}`, {
       method: 'DELETE',
     })
+  },
+
+  /* -------------------------------------------------------------------------
+   * Admin — /api/admin/*, deployment-wide and gated on the caller's role.
+   *
+   * Read-only by design: the admin section reports on every user's repos, it
+   * never edits them. A non-admin calling any of these gets a 403 from the
+   * backend regardless of what the UI shows.
+   * ----------------------------------------------------------------------- */
+
+  /** Deployment-wide tiles. Same shape as getDashboardStats, so StatCard is reused. */
+  getAdminStats(): Promise<DashboardStats> {
+    if (USE_MOCKS) return mock(mockAdminStats)
+    return request<DashboardStats>('/admin/stats')
+  },
+
+  getAdminUsers(): Promise<AdminUser[]> {
+    if (USE_MOCKS) return mock(mockAdminUsers)
+    return request<AdminUser[]>('/admin/users')
+  },
+
+  getAdminUser(id: number): Promise<AdminUserDetail> {
+    if (USE_MOCKS) {
+      const user = mockAdminUsers.find((u) => u.id === id)
+      if (!user) return Promise.reject(new ApiError(404, `user ${id} not found`))
+      return mock({
+        ...user,
+        installations: mockAdminInstallations
+          .filter((i) => i.userId === id)
+          .map((i) => ({
+            name: i.name,
+            owner: i.owner,
+            visibility: i.visibility,
+            updated: i.updated,
+            connected: i.connected,
+            active: i.active,
+          })),
+        recentReviews: mockAdminReviews.filter((r) => r.user === user.handle),
+      })
+    }
+    return request<AdminUserDetail>(`/admin/users/${id}`)
+  },
+
+  getAdminInstallations(): Promise<AdminInstallation[]> {
+    if (USE_MOCKS) return mock(mockAdminInstallations)
+    return request<AdminInstallation[]>('/admin/installations')
+  },
+
+  /** The global review feed. `status: 'failed'` narrows it to the runs that broke. */
+  getAdminReviews(status?: string, limit = 20): Promise<AdminReview[]> {
+    if (USE_MOCKS) {
+      const failed = ['incomplete', 'total_failure']
+      const rows =
+        status === 'failed'
+          ? mockAdminReviews.filter((r) => failed.includes(r.status))
+          : mockAdminReviews
+      return mock(rows.slice(0, limit))
+    }
+    const query = new URLSearchParams({ limit: String(limit) })
+    if (status) query.set('status', status)
+    return request<AdminReview[]>(`/admin/reviews?${query}`)
   },
 }

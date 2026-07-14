@@ -37,6 +37,15 @@ export function Sidebar() {
         <NavLink to="/connect" className={navClass}>
           <Icon name="circle-plus" size={16} /> Connect repo
         </NavLink>
+        {/* Offered to admins only, and *in addition to* Dashboard above — an admin
+            still has their own repos, so both links stay live and they switch
+            between the two views at will. Hiding this is not the access control:
+            /api/admin re-checks the role on every request. */}
+        {user.data?.role === 'admin' && (
+          <NavLink to="/admin" className={navClass}>
+            <Icon name="users" size={16} /> Admin
+          </NavLink>
+        )}
       </nav>
 
       <div className={`${styles.repos} prl-scroll`}>

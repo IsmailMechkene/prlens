@@ -2,10 +2,13 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ThemeProvider } from './theme/ThemeProvider'
 import { AppLayout } from './components/layout/AppLayout'
 import { RequireAuth } from './components/layout/RequireAuth'
+import { RequireAdmin } from './components/layout/RequireAdmin'
 import { LandingPage } from './pages/LandingPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { RepoDetailPage } from './pages/RepoDetailPage'
 import { ConnectPage } from './pages/ConnectPage'
+import { AdminPage } from './pages/AdminPage'
+import { AdminUserPage } from './pages/AdminUserPage'
 import { FeaturesPage } from './pages/FeaturesPage'
 import { DocsPage } from './pages/DocsPage'
 import { PrivacyPage } from './pages/PrivacyPage'
@@ -28,6 +31,14 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/repos/:name" element={<RepoDetailPage />} />
               <Route path="/connect" element={<ConnectPage />} />
+              {/* The admin section sits inside the same shell as everything else, so
+                  an admin moves between it and their own dashboard the way they move
+                  between any two pages. RequireAdmin only adds the role check — the
+                  session has already been established by RequireAuth above. */}
+              <Route element={<RequireAdmin />}>
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/admin/users/:id" element={<AdminUserPage />} />
+              </Route>
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

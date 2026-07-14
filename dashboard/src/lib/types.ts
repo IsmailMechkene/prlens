@@ -6,6 +6,13 @@
  * BACKEND_CONTRACT.md at the project root.
  */
 
+/**
+ * A user's privilege level. `admin` unlocks the deployment-wide admin section on
+ * top of the ordinary dashboard — it does not replace it. Granted only out of band
+ * (scripts/set_admin.py); there is no way to change it from the UI.
+ */
+export type Role = 'user' | 'admin'
+
 /** The signed-in user. */
 export interface User {
   name: string
@@ -14,6 +21,12 @@ export interface User {
   initials: string
   /** Optional avatar image URL. */
   avatarUrl?: string
+  /**
+   * Drives whether the admin section is offered. A hint for the UI only: hiding
+   * the link is not the access control — every /api/admin route re-checks the role
+   * server-side, so a hand-typed /admin URL still gets a 403.
+   */
+  role: Role
 }
 
 export type Visibility = 'Public' | 'Private'
@@ -124,4 +137,46 @@ export interface RepoDetail extends Repo {
   scoreDelta: number
   issues: IssueBreakdown[]
   settings: RepoSettings
+}
+
+/* ---------------------------------------------------------------------------
+ * Admin
+ *
+ * These shapes come from /api/admin/*, which is scoped to the whole deployment
+ * rather than to the signed-in user, and is read-only: the admin section reports,
+ * it does not administer other people's repos.
+ * ------------------------------------------------------------------------- */
+
+/** One account, as the admin users list sees it. */
+export interface AdminUser {
+  id: number
+  name: string
+  handle: string
+  initials: string
+  avatarUrl?: string
+  role: Role
+  /** Number of repos this user has connected. */
+  repos: number
+  /** Number of reviews recorded across them. */
+  reviews: number
+  /** Relative time of their most recent review, or "—" if they have none. */
+  lastActive: string
+}
+
+/** One account in full: the counts above, plus the rows behind them. */
+export interface AdminUserDetail extends AdminUser {
+  installations: Repo[]
+  recentReviews: Review[]
+}
+
+/** An installation as the admin sees it — with the user it belongs to. */
+export interface AdminInstallation extends Repo {
+  userId: number
+  /** Handle of the user who connected it. */
+  user: string
+}
+
+/** A review in the global feed, tagged with whose installation recorded it. */
+export interface AdminReview extends Review {
+  user: string
 }

@@ -2,7 +2,7 @@
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
-[![Tests](https://img.shields.io/badge/tests-92%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/reviewer%20core-99%25-brightgreen.svg)](#testing)
 [![Eval precision](https://img.shields.io/badge/eval%20precision-86.7%25-brightgreen.svg)](#evaluation-results)
 
@@ -21,6 +21,7 @@ It also ships a **web dashboard**: sign in with GitHub, connect repositories in 
 - [Installation — GitHub Actions mode](#installation--github-actions-mode)
 - [Installation — Webhook mode](#installation--webhook-mode)
 - [The dashboard](#the-dashboard)
+- [The admin section](#the-admin-section)
 - [Configuration reference](#configuration-reference)
 - [Environment variables](#environment-variables)
 - [GitHub App setup](#github-app-setup)
@@ -101,13 +102,14 @@ PRLens also applies labels (e.g. `needs-changes`, `security-concern`), submits a
 - **Per-repo settings** — severity floor, languages, excluded files, score thresholds, reviewer mapping — stored in Postgres and applied to that repo's reviews.
 - **Review history & trends** — every review PRLens posts is recorded, with score trends, issue-type breakdowns, and per-PR comment detail.
 - **Active toggle** — pause reviews on a repo without disconnecting it.
+- **Admin section** — a deployment-wide, read-only view for operators: every account, every connected repo, every review, and the failure rate across all of them.
 
 **Engineering**
 
 - **Parallel analysis** — one LLM call per file, fanned out with a `ThreadPoolExecutor`.
 - **GitHub App auth** — JWT-signed installation tokens with automatic refresh before expiry (also supports a plain PAT).
 - **Two deployment modes** — GitHub Actions (no server) or a FastAPI webhook server (no per-repo setup, plus the dashboard).
-- **Validated** — 92 unit tests, 99% coverage of the reviewer core, plus an eval harness reporting **86.7% precision** (spec requires ≥ 70%).
+- **Validated** — 117 unit tests, 99% coverage of the reviewer core, plus an eval harness reporting **86.7% precision** (spec requires ≥ 70%).
 
 ---
 
@@ -299,8 +301,46 @@ A React + TypeScript single-page app (`dashboard/`) served against the same Fast
 | `PUT` | `/api/repos/{name}/active` | Pause / resume reviews for a repo |
 | `GET` | `/api/reviews` | Recent reviews across all repos |
 | `GET` | `/api/repos/{name}/reviews` | Reviews for one repo |
+| `GET` | `/api/admin/stats` | **Admin.** Deployment-wide tiles |
+| `GET` | `/api/admin/users` | **Admin.** Every account, with repo/review counts |
+| `GET` | `/api/admin/users/{id}` | **Admin.** One account: its repos and reviews |
+| `GET` | `/api/admin/installations` | **Admin.** Every installation, across all users |
+| `GET` | `/api/admin/reviews` | **Admin.** Global review feed (`?status=failed`) |
 
-Everything under `/api` requires the bearer token.
+Everything under `/api` requires the bearer token. Everything under `/api/admin` additionally requires the caller's `role` to be `admin`, and answers `403` otherwise.
+
+---
+
+## The admin section
+
+The dashboard is per-user: `/api/stats`, `/api/repos` and the rest are all scoped to the signed-in account, so nobody — including you — can see how the deployment as a whole is doing. The admin section is that missing view.
+
+**What it shows**
+
+- **Deployment tiles** — total users (and how many are admins), total repos connected and how many are active, total reviews run, and **failed reviews** as a count and a share of all runs. A failure rate climbing across *unrelated* repos and users is what an Azure OpenAI outage looks like from the inside; a per-user dashboard structurally cannot show that.
+- **Users** — every account with its repo count, review count and last review, and a drill-down page per user. This is the support view: "why isn't PRLens reviewing my repo" is usually answered by whether the repo is connected at all, and whether it's active.
+- **All installations** — every repo × user pairing. Because the unique key is `(user_id, repo_name)`, a repo connected by two people has two rows, which is what makes the duplicate-installation limitation below visible at all.
+- **Global review feed** — every review across every repo, filterable down to just the runs that broke.
+
+It is **read-only**. It reports on other users' repos; it never edits, disconnects or reconfigures them.
+
+**Becoming an admin**
+
+`User.role` is `user` or `admin`. There is deliberately **no endpoint and no button** that grants the role — an admin surface that can mint more admins turns one compromised admin session, or one bug in the role check, into a permanent privilege-escalation path. Promotion is an out-of-band action taken by somebody who already has database access:
+
+```bash
+# the user must have signed in through GitHub at least once — the row has to exist
+python -m scripts.set_admin --handle IsmailMechkene
+
+python -m scripts.set_admin --list                     # every account and its role
+python -m scripts.set_admin --handle someone --revoke  # demote (refuses on the last admin)
+```
+
+The role is read from the database row on **every** request, not from a claim baked into the session JWT, so revoking it takes effect immediately rather than whenever the user's 30-day token happens to expire.
+
+**Getting to it.** An admin keeps an ordinary account — their own repos, their own dashboard. The admin section is an extra entry in the sidebar (`/admin`), not a mode the account is switched into, so an admin moves between the global view and their personal dashboard the way they move between any two pages. Non-admins never see the link, and a hand-typed `/admin` URL bounces them back to their dashboard — though that redirect is only cosmetic: the actual enforcement is the `403` from the API.
+
+**Schema note.** `role` is added to the `users` table at startup if it isn't there (see [Limitations](#limitations-and-known-issues) — there's no migration tool), and existing accounts are backfilled to `user`. Nobody is silently promoted by deploying this.
 
 ---
 
@@ -462,14 +502,15 @@ prlens/
 
 auth/github_oauth.py       # Dashboard sign-in (OAuth code exchange)
 database/
-├── models.py              # User, Installation, Review, ReviewComment
-└── connection.py          # Engine/session (DATABASE_URL)
+├── models.py              # User (+ role), Installation, Review, ReviewComment
+└── connection.py          # Engine/session (DATABASE_URL), startup schema patches
 
 dashboard/                 # React 19 + TypeScript + Vite SPA
-├── src/pages/             # Landing, Dashboard, RepoDetail, Connect, Docs, ...
-├── src/components/        # Layout (sidebar), repo, connect, ui primitives
+├── src/pages/             # Landing, Dashboard, RepoDetail, Connect, Admin, Docs, ...
+├── src/components/        # Layout (sidebar, auth/admin guards), repo, connect, ui
 └── src/lib/api.ts         # Typed API client, bearer-token auth
 
+scripts/set_admin.py       # Grant/revoke the admin role (the only way to)
 main.py                    # Actions-mode entry point
 eval/                      # Offline evaluation harness
 ```
@@ -514,7 +555,7 @@ pytest
 pytest --cov=prlens --cov-report=term-missing
 ```
 
-**92 tests.** Coverage is **99% across the reviewer core** — config, GitHub client (PAT **and** GitHub App auth), PR fetcher/publisher, analyzer, LLM client, and the agent orchestrator. The webhook/dashboard API layer in `prlens/webhook/app.py` is covered for signature verification and event dispatch, but its `/api` endpoints are largely untested (see [Limitations](#limitations-and-known-issues)).
+**117 tests.** Coverage is **99% across the reviewer core** — config, GitHub client (PAT **and** GitHub App auth), PR fetcher/publisher, analyzer, LLM client, and the agent orchestrator. The webhook/dashboard API layer in `prlens/webhook/app.py` is covered for signature verification, event dispatch, and the whole admin section — including the authorization rule itself, which is exercised against a real (in-memory SQLite) database rather than a mocked user. Its per-user CRUD endpoints remain largely untested (see [Limitations](#limitations-and-known-issues)).
 
 The frontend has no test suite; it is gated on `tsc --noEmit` and `eslint`:
 
@@ -535,9 +576,10 @@ npm run build      # runs tsc -b, then vite build
 - **Language coverage.** Only Python, JavaScript, TypeScript, and Java are recognized for language filtering.
 - **Azure OpenAI required.** The LLM client is wired for an Azure OpenAI endpoint; other providers would require adapting `prlens/llm/client.py`.
 - **Reviewer assignment needs collaborators.** Mapped reviewers must be repository collaborators or GitHub rejects the request (logged as a warning, non-fatal).
-- **Dashboard API test coverage is thin.** `prlens/webhook/app.py` sits at ~42% line coverage — the review path and webhook verification are tested, the CRUD endpoints mostly aren't.
-- **No migration tool.** Tables are created from the SQLAlchemy models at startup; there is no Alembic setup, so schema changes need handling by hand.
-- **Per-user installations.** A repo connected by two different users has two `Installation` rows. Toggling one inactive does not silence reviews if the other is still active.
+- **Dashboard API test coverage is thin.** `prlens/webhook/app.py` sits at ~52% line coverage — the review path, webhook verification and the admin section are tested; the per-user CRUD endpoints mostly aren't.
+- **No migration tool.** Tables are created from the SQLAlchemy models at startup; there is no Alembic setup. `create_all` never alters an existing table, so a column added to an existing model has to be patched in by hand at boot — `database/connection.py` does exactly that for `users.role` (and for an older unique index on `users.handle`). Any further schema change needs the same treatment.
+- **Per-user installations.** A repo connected by two different users has two `Installation` rows. Toggling one inactive does not silence reviews if the other is still active. The admin section's installations view is where this is visible — it lists every repo × user pairing — but it only *reports* the duplication; it does not resolve it.
+- **The admin section is read-only.** It answers "what is happening across this deployment", not "fix it": there is no force-disconnect, no editing another user's settings, and no promoting a user from the UI. Those are all deliberate — a write-capable admin surface is a privilege-escalation path — but it does mean genuine cleanup still happens in `psql` or via `scripts/set_admin.py`.
 
 ---
 

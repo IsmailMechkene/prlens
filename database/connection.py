@@ -3,10 +3,10 @@ import os
 from typing import Generator
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from database.models import Base
+from database.models import ROLE_USER, Base
 
 load_dotenv()
 
@@ -54,6 +54,34 @@ def _relax_handle_uniqueness() -> None:
         logger.exception("Could not relax the uniqueness of users.handle")
 
 
+def _add_user_role_column() -> None:
+    """Add ``users.role`` to databases created before the column existed.
+
+    ``create_all`` only ever creates missing *tables*, never missing columns, so a
+    deployment whose ``users`` table predates the admin dashboard would keep a
+    table with no ``role`` and fail every query that selects it. Checked through
+    the inspector rather than ``ADD COLUMN IF NOT EXISTS``, which SQLite does not
+    support. The DEFAULT backfills the rows already there, so existing accounts
+    become ordinary users — never admins.
+    """
+    try:
+        columns = {column["name"] for column in inspect(engine).get_columns("users")}
+        if "role" in columns:
+            return
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"ALTER TABLE users ADD COLUMN role VARCHAR(20) "
+                    f"NOT NULL DEFAULT '{ROLE_USER}'"
+                )
+            )
+        logger.info("Added users.role, defaulting existing accounts to %r", ROLE_USER)
+    except Exception:
+        logger.exception("Could not add the users.role column")
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     _relax_handle_uniqueness()
+    _add_user_role_column()

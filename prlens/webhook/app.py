@@ -29,12 +29,12 @@ from auth.github_oauth import (
     get_github_user,
 )
 from database.connection import get_db, init_db
-from database.models import Installation, Review, ReviewComment, User
+from database.models import ROLE_ADMIN, Installation, Review, ReviewComment, User
 from prlens.config.settings import Settings, SupportedLanguages, load_settings
 from prlens.core.agent import Agent
 from prlens.github.client import GitHubClient
 from prlens.github.pr_fetcher import PRFetcher
-from prlens.github.pr_publisher import PRPublisher
+from prlens.github.pr_publisher import PRPublisher, ReviewOutcome
 from prlens.llm.analyzer import Analyzer
 from prlens.llm.client import LLMClient
 from prlens.models.pr import PR
@@ -138,6 +138,16 @@ ISSUE_CATEGORIES: dict[ReviewType, str] = {
 }
 
 SCORE_TREND_DAYS = 30
+
+# Review.status values that mean the review did not complete cleanly. Tracked as a
+# single tile on the admin dashboard: a cluster of these across unrelated repos is
+# what an Azure OpenAI outage looks like from the inside.
+FAILED_STATUSES = (ReviewOutcome.INCOMPLETE.value, ReviewOutcome.TOTAL_FAILURE.value)
+
+# Page size for the admin lists. They are bounded because they are the only views
+# in the app whose result set grows with the *whole* deployment rather than with
+# one user's repos.
+ADMIN_PAGE_LIMIT = 100
 
 # GitHub caps per_page at 100, so the Connect page walks pages. The page limit is
 # only a runaway guard — 20 pages is 2000 repos.
@@ -520,6 +530,20 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Gate for /api/admin: authenticated *and* an administrator.
+
+    The role is read from the database row on every request (get_current_user
+    loads it), not from a claim in the JWT — a token minted while the user was an
+    admin therefore stops opening these routes the moment the role is revoked,
+    rather than at the end of its 30-day life.
+    """
+    if current_user.role != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="Administrator access required")
+    return current_user
+
+
 def time_ago(dt: datetime) -> str:
     now = datetime.now(timezone.utc)
     if dt.tzinfo is None:
@@ -709,6 +733,9 @@ def get_user(current_user: User = Depends(get_current_user)):
         "handle": current_user.handle,
         "initials": current_user.initials,
         "avatarUrl": current_user.avatar_url,
+        # Drives whether the dashboard offers the admin section. It is a hint for
+        # the UI only: every /api/admin route re-checks the role server-side.
+        "role": current_user.role,
     }
 
 
@@ -1109,4 +1136,262 @@ def get_repo(
         "scoreDelta": current_score - trend[0] if trend else 0,
         "issues": issue_breakdown(db, installation),
         "settings": serialize_settings(installation),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Admin
+#
+# Every route below is scoped to the whole deployment rather than to the caller,
+# and is gated on ``require_admin``. They are all read-only on purpose: an admin
+# surface that can also write is a privilege-escalation path, so a role is only
+# ever granted out of band (scripts/set_admin.py) and nothing here mutates another
+# user's repos, settings or history.
+#
+# Being an admin adds these views; it takes nothing away. An admin still has their
+# own installations and their own /api/* data, so they move between the global view
+# and their personal dashboard freely — the two are separate routes, not a mode.
+#
+# `/api/admin/...` cannot be captured by the greedy `/api/repos/{name:path}` route
+# above: that one only matches paths beginning with `/api/repos/`.
+# ---------------------------------------------------------------------------
+
+
+def serialize_admin_user(user: User, repos: int, reviews: int, last: datetime | None) -> dict:
+    return {
+        "id": user.id,
+        "name": user.name,
+        "handle": user.handle,
+        "initials": user.initials,
+        "avatarUrl": user.avatar_url,
+        "role": user.role,
+        "repos": repos,
+        "reviews": reviews,
+        # No review yet is an em dash rather than a misleading "just now".
+        "lastActive": time_ago(last) if last is not None else "—",
+    }
+
+
+def _reviews_per_user(db: Session) -> tuple[dict[int, int], dict[int, datetime]]:
+    """(reviews per user_id, most recent review per user_id).
+
+    Aggregated in two grouped queries rather than by walking each user's
+    installations, so the users list stays a fixed number of round trips however
+    many accounts the deployment has.
+    """
+    rows = (
+        db.query(
+            Installation.user_id,
+            func.count(Review.id),
+            func.max(Review.reviewed_at),
+        )
+        .join(Review, Review.installation_id == Installation.id)
+        .group_by(Installation.user_id)
+        .all()
+    )
+    counts = {user_id: count for user_id, count, _ in rows}
+    latest = {user_id: last for user_id, _, last in rows if last is not None}
+    return counts, latest
+
+
+def _repos_per_user(db: Session) -> dict[int, int]:
+    return dict(
+        db.query(Installation.user_id, func.count(Installation.id))
+        .group_by(Installation.user_id)
+        .all()
+    )
+
+
+@app.get("/api/admin/stats")
+def get_admin_stats(
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Deployment-wide tiles. Same shape as /api/stats, so the UI reuses StatCard."""
+    total_users = db.query(User).count()
+    total_admins = db.query(User).filter(User.role == ROLE_ADMIN).count()
+
+    total_repos = db.query(Installation).count()
+    active_repos = db.query(Installation).filter(Installation.active.is_(True)).count()
+
+    total_reviews = db.query(Review).count()
+    reviews_this_week = db.query(Review).filter(
+        Review.reviewed_at >= datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7),
+    ).count()
+
+    failed_reviews = db.query(Review).filter(Review.status.in_(FAILED_STATUSES)).count()
+    failure_rate = round(100 * failed_reviews / total_reviews) if total_reviews else 0
+
+    return {
+        "stats": [
+            {
+                "id": "users",
+                "label": "Users",
+                "value": str(total_users),
+                "delta": f"{total_admins} admin" if total_admins else "",
+                "trend": "neutral",
+                "icon": "users",
+                "iconColor": "var(--pa)",
+            },
+            {
+                "id": "repos",
+                "label": "Repos connected",
+                "value": str(total_repos),
+                "delta": f"{active_repos} active" if total_repos else "",
+                "trend": "neutral",
+                "icon": "git-branch",
+                "iconColor": "var(--done)",
+            },
+            {
+                "id": "reviews",
+                "label": "Reviews run",
+                "value": str(total_reviews),
+                "delta": f"+{reviews_this_week} this wk" if reviews_this_week else "",
+                "trend": "up" if reviews_this_week else "neutral",
+                "icon": "git-pull-request",
+                "iconColor": "var(--success)",
+            },
+            {
+                # A rate that climbs across unrelated repos is the deployment-level
+                # signal a per-user dashboard structurally cannot show: it means the
+                # LLM backend is failing, not that somebody's code got worse.
+                "id": "failures",
+                "label": "Failed reviews",
+                "value": str(failed_reviews),
+                "delta": f"{failure_rate}% of runs" if total_reviews else "",
+                "trend": "down" if failed_reviews else "neutral",
+                "icon": "shield-alert",
+                "iconColor": "var(--danger)",
+            },
+        ]
+    }
+
+
+@app.get("/api/admin/users")
+def get_admin_users(
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = ADMIN_PAGE_LIMIT,
+):
+    repo_counts = _repos_per_user(db)
+    review_counts, last_reviews = _reviews_per_user(db)
+
+    users = db.query(User).order_by(User.id).limit(min(limit, ADMIN_PAGE_LIMIT)).all()
+
+    return [
+        serialize_admin_user(
+            user,
+            repo_counts.get(user.id, 0),
+            review_counts.get(user.id, 0),
+            last_reviews.get(user.id),
+        )
+        for user in users
+    ]
+
+
+@app.get("/api/admin/installations")
+def get_admin_installations(
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = ADMIN_PAGE_LIMIT,
+):
+    """Every installation across every user.
+
+    The same repo appears once per user who connected it — the unique key is
+    (user_id, repo_name) — which is exactly what makes the duplicate-installation
+    problem visible here and nowhere else.
+    """
+    installations = (
+        db.query(Installation)
+        .options(joinedload(Installation.user))
+        .order_by(Installation.installed_at.desc())
+        .limit(min(limit, ADMIN_PAGE_LIMIT))
+        .all()
+    )
+
+    return [
+        {
+            **serialize_repo(installation),
+            "userId": installation.user_id,
+            "user": installation.user.handle if installation.user else "—",
+        }
+        for installation in installations
+    ]
+
+
+@app.get("/api/admin/reviews")
+def get_admin_reviews(
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = 20,
+    status: str | None = None,
+):
+    """The global review feed. ``status=failed`` narrows it to the runs that broke."""
+    query = db.query(Review).options(
+        joinedload(Review.installation).joinedload(Installation.user)
+    ).join(Installation)
+
+    if status == "failed":
+        query = query.filter(Review.status.in_(FAILED_STATUSES))
+    elif status:
+        query = query.filter(Review.status == status)
+
+    reviews = (
+        query.order_by(Review.reviewed_at.desc())
+        .limit(min(limit, ADMIN_PAGE_LIMIT))
+        .all()
+    )
+
+    return [
+        {
+            **serialize_review(review),
+            "user": review.installation.user.handle if review.installation.user else "—",
+        }
+        for review in reviews
+    ]
+
+
+@app.get("/api/admin/users/{user_id}")
+def get_admin_user(
+    user_id: int,
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    limit: int = 20,
+):
+    """One user: their profile, their installations, and their latest reviews.
+
+    The support view — "why is PRLens not reviewing my repo" is answered by whether
+    the repo is here at all, and whether it is active.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    installations = db.query(Installation).filter(
+        Installation.user_id == user.id
+    ).order_by(Installation.installed_at.desc()).all()
+
+    reviews = (
+        db.query(Review)
+        .options(joinedload(Review.installation))
+        .join(Installation)
+        .filter(Installation.user_id == user.id)
+        .order_by(Review.reviewed_at.desc())
+        .limit(min(limit, ADMIN_PAGE_LIMIT))
+        .all()
+    )
+
+    review_counts, last_reviews = _reviews_per_user(db)
+
+    # `repos` and `reviews` stay the counts they are on /api/admin/users — the lists
+    # get their own keys rather than shadowing them with a different type.
+    return {
+        **serialize_admin_user(
+            user,
+            len(installations),
+            review_counts.get(user.id, 0),
+            last_reviews.get(user.id),
+        ),
+        "installations": [serialize_repo(installation) for installation in installations],
+        "recentReviews": [serialize_review(review) for review in reviews],
     }
