@@ -29,7 +29,7 @@ export function ConnectPage() {
   // so a brand-new repo can be enabled from here.
   const repos = useAsync(() => api.getGitHubRepos(), [])
   const user = useAsync(() => api.getUser(), [])
-  const username = user.data?.handle.replace(/^@/, '') ?? user.data?.name ?? 'your account'
+  const username = user.data?.handle.replace(/^@/, '') ?? user.data?.name
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -45,8 +45,13 @@ export function ConnectPage() {
     <div className={styles.container}>
       <h1 className={styles.title}>Connect a repository</h1>
       <p className={styles.subtitle}>
-        Enable PRLens on repositories in <span className={styles.org}>{username}</span>. It will start
-        reviewing new pull requests immediately.
+        Enable PRLens on repositories in{' '}
+        {username ? (
+          <span className={styles.org}>{username}</span>
+        ) : (
+          <Skeleton width={72} height={14} radius={4} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+        )}
+        . It will start reviewing new pull requests immediately.
       </p>
 
       <div className={styles.search}>
