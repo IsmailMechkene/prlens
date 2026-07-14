@@ -1,0 +1,87 @@
+.root {
+  position: relative;
+}
+
+.trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Keeps the chevron off the right border rather than jammed against it. */
+  gap: 10px;
+  padding: 7px 11px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-align: left;
+  color: var(--fg-default);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-sm);
+  cursor: pointer;
+}
+.trigger:hover {
+  border-color: var(--border-strong);
+}
+.trigger[aria-expanded='true'],
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--pa);
+}
+
+.value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  transition: transform 0.15s ease;
+}
+.chevron[data-open='true'] {
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-sm);
+  box-shadow: 0 10px 24px rgb(0 0 0 / 30%);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+.option[data-active='true'] {
+  background: var(--bg-inset);
+  color: var(--fg-default);
+}
+.option[aria-selected='true'] {
+  color: var(--pa);
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

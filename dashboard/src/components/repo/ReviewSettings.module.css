@@ -138,30 +138,26 @@
   align-items: center;
   gap: 8px;
 }
-.mapKey,
+/* The Select draws its own trigger, so this only has to size it. */
+.mapKey {
+  flex: 1;
+  min-width: 0;
+}
 .mapVal {
   flex: 1;
   min-width: 0;
   font-size: 12.5px;
   font-family: var(--font-mono);
-  padding: 7px 10px;
+  padding: 7px 11px;
   border: 1px solid var(--border-default);
   border-radius: var(--rad-sm);
   background: var(--bg-inset);
-  outline: none;
-}
-.mapKey {
-  color: var(--danger);
-  cursor: pointer;
-  text-transform: capitalize;
-}
-.mapVal {
   color: var(--pa);
+  outline: none;
 }
 .mapVal::placeholder {
   color: var(--fg-subtle);
 }
-.mapKey:focus,
 .mapVal:focus {
   border-color: var(--pa);
 }

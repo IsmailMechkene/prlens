@@ -5,6 +5,7 @@ import { accentMix } from '../../theme/theme'
 import type { RepoSettings, Severity } from '../../lib/types'
 import { Icon } from '../ui/Icon'
 import { Button } from '../ui/Button'
+import { Select } from '../ui/Select'
 import styles from './ReviewSettings.module.css'
 
 const SEVERITIES: Severity[] = ['info', 'warning', 'error', 'critical']
@@ -223,19 +224,15 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
         <div className={styles.mapList}>
           {settings.reviewerMap.map((m, i) => (
             <div key={m.key} className={styles.mapRow}>
-              <select
+              <Select
                 className={styles.mapKey}
                 value={m.key}
-                aria-label="Review type"
-                onChange={(e) => setMapping(i, { key: e.target.value })}
-              >
-                {/* Its own type stays selectable; the rest are the unused ones. */}
-                {[m.key, ...unusedTypes].map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                label="Review type"
+                valueStyle={{ color: 'var(--danger)' }}
+                /* Its own type stays selectable; the rest are the unused ones. */
+                options={[m.key, ...unusedTypes].map((t) => ({ value: t, label: t }))}
+                onChange={(key) => setMapping(i, { key })}
+              />
               <Icon name="arrow-right" size={14} className={styles.mapArrow} />
               <input
                 className={styles.mapVal}
