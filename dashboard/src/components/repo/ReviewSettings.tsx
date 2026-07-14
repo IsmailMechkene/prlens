@@ -9,6 +9,10 @@ import styles from './ReviewSettings.module.css'
 
 const SEVERITIES: Severity[] = ['info', 'warning', 'error', 'critical']
 
+// The backend maps these onto the ReviewType enum and drops anything it does not
+// recognise, so the key has to be a fixed choice rather than free text.
+const REVIEW_TYPES = ['quality', 'security', 'performance', 'style', 'documentation']
+
 interface ReviewSettingsProps {
   repo: string
   initial: RepoSettings
@@ -17,6 +21,7 @@ interface ReviewSettingsProps {
 export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
   const [settings, setSettings] = useState<RepoSettings>(initial)
   const [excludedInput, setExcludedInput] = useState('')
+  const [focusRow, setFocusRow] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -41,11 +46,41 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
     }
   }
 
+  // A review type already mapped cannot be picked again: the backend keys the map
+  // by type, so a duplicate row would silently overwrite the one above it.
+  const unusedTypes = REVIEW_TYPES.filter(
+    (t) => !settings.reviewerMap.some((m) => m.key === t),
+  )
+
+  const addMapping = () => {
+    const next = unusedTypes[0]
+    if (!next) return
+    setFocusRow(settings.reviewerMap.length)
+    patch({ reviewerMap: [...settings.reviewerMap, { key: next, value: '' }] })
+  }
+
+  const setMapping = (idx: number, next: Partial<{ key: string; value: string }>) =>
+    patch({
+      reviewerMap: settings.reviewerMap.map((m, i) => (i === idx ? { ...m, ...next } : m)),
+    })
+
+  const removeMapping = (idx: number) =>
+    patch({ reviewerMap: settings.reviewerMap.filter((_, i) => i !== idx) })
+
   const save = async () => {
     setSaving(true)
     setFailed(false)
+    // A row whose reviewer was never filled in is an unfinished edit, not a
+    // mapping to store — sending it would map the type to an empty reviewer.
+    const payload = {
+      ...settings,
+      reviewerMap: settings.reviewerMap
+        .map((m) => ({ ...m, value: m.value.trim() }))
+        .filter((m) => m.value),
+    }
     try {
-      await api.updateRepoSettings(repo, settings)
+      await api.updateRepoSettings(repo, payload)
+      setSettings(payload)
       setSaved(true)
     } catch {
       // A rejected save used to leave the button back on "Save changes" with no
@@ -176,7 +211,7 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
             value={excludedInput}
             onChange={(e) => setExcludedInput(e.target.value)}
             onKeyDown={addExcluded}
-            placeholder="Add pattern…"
+            placeholder="Add pattern, then press Enter…"
             className={styles.tagInput}
           />
         </div>
@@ -186,17 +221,48 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
       <div className={styles.field}>
         <label className={styles.label}>Reviewer mapping</label>
         <div className={styles.mapList}>
-          {settings.reviewerMap.map((m) => (
+          {settings.reviewerMap.map((m, i) => (
             <div key={m.key} className={styles.mapRow}>
-              <span className={styles.mapKey} style={{ color: 'var(--danger)' }}>
-                {m.key}
-              </span>
+              <select
+                className={styles.mapKey}
+                value={m.key}
+                aria-label="Review type"
+                onChange={(e) => setMapping(i, { key: e.target.value })}
+              >
+                {/* Its own type stays selectable; the rest are the unused ones. */}
+                {[m.key, ...unusedTypes].map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
               <Icon name="arrow-right" size={14} className={styles.mapArrow} />
-              <span className={styles.mapVal}>{m.value}</span>
+              <input
+                className={styles.mapVal}
+                value={m.value}
+                autoFocus={i === focusRow}
+                placeholder="@team or @user"
+                aria-label={`Reviewer for ${m.key}`}
+                onChange={(e) => setMapping(i, { value: e.target.value })}
+              />
+              <button
+                type="button"
+                className={styles.mapRemove}
+                aria-label={`Remove ${m.key} mapping`}
+                onClick={() => removeMapping(i)}
+              >
+                <Icon name="x" size={14} />
+              </button>
             </div>
           ))}
-          <button type="button" className={styles.addMapping}>
-            <Icon name="plus" size={14} /> Add mapping
+          <button
+            type="button"
+            className={styles.addMapping}
+            onClick={addMapping}
+            disabled={unusedTypes.length === 0}
+          >
+            <Icon name="plus" size={14} />
+            {unusedTypes.length === 0 ? 'All review types mapped' : 'Add mapping'}
           </button>
         </div>
       </div>

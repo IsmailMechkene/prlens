@@ -141,19 +141,45 @@
 .mapKey,
 .mapVal {
   flex: 1;
+  min-width: 0;
   font-size: 12.5px;
   font-family: var(--font-mono);
   padding: 7px 10px;
   border: 1px solid var(--border-default);
   border-radius: var(--rad-sm);
   background: var(--bg-inset);
+  outline: none;
+}
+.mapKey {
+  color: var(--danger);
+  cursor: pointer;
+  text-transform: capitalize;
 }
 .mapVal {
   color: var(--pa);
 }
+.mapVal::placeholder {
+  color: var(--fg-subtle);
+}
+.mapKey:focus,
+.mapVal:focus {
+  border-color: var(--pa);
+}
 .mapArrow {
   color: var(--fg-subtle);
   flex-shrink: 0;
+}
+.mapRemove {
+  display: inline-flex;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--fg-muted);
+}
+.mapRemove:hover {
+  color: var(--danger);
 }
 .addMapping {
   align-self: flex-start;
@@ -168,8 +194,12 @@
   cursor: pointer;
   padding: 2px 0;
 }
-.addMapping:hover {
+.addMapping:hover:not(:disabled) {
   color: var(--fg-default);
+}
+.addMapping:disabled {
+  color: var(--fg-subtle);
+  cursor: default;
 }
 
 /* Save */
