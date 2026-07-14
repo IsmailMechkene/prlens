@@ -258,7 +258,7 @@ A React + TypeScript single-page app (`dashboard/`) served against the same Fast
 
 **What it does**
 
-- **Connect repos** — lists the repositories you can administer and connects them to the PRLens GitHub App in one click; disconnecting removes the review history and detaches the repo from the App.
+- **Connect repos** — lists the repositories you can administer and enables PRLens on them; disconnecting removes the review history and detaches the repo from the App. Enabling records the repo and its settings — GitHub only starts sending pull requests once the **PRLens GitHub App is installed on the account that owns the repo**, which only that owner can do. Enable a repo on an account without the App and the dashboard sends you to GitHub to install it.
 - **Per-repo settings** — the same fields as `.aireviewer.yml`, edited in the UI and persisted per repo. Settings stored here take precedence over the file for that repo.
 - **Active toggle** — flip a repo inactive to pause its reviews (the webhook returns early) while keeping its history.
 - **Stats & history** — repos connected, reviews run, average score, issue-type breakdown, score trend over time, and the full comment detail of each recorded review.
@@ -403,7 +403,7 @@ large_pr_threshold: 20
 | `AZURE_OPENAI_ENDPOINT` | Always | Azure OpenAI endpoint / base URL. |
 | `GITHUB_TOKEN` | PAT auth | Fallback token when GitHub App credentials aren't set. Needs `repo` scope. |
 | `GITHUB_APP_ID` | App auth | The GitHub App PRLens reviews as. Its presence selects App auth over `GITHUB_TOKEN`. |
-| `GITHUB_APP_INSTALLATION_ID` | App auth | Installation ID of that App. |
+| `GITHUB_APP_INSTALLATION_ID` | Actions mode | Installation ID of that App. Not used in webhook mode: PRLens serves many accounts, and each has its own installation, so the one that owns a repo is looked up from the App per review. |
 | `GITHUB_APP_PRIVATE_KEY_PATH` | App auth | Path to the App's `.pem`. Local checkouts only — see `_B64` below. |
 | `GITHUB_APP_PRIVATE_KEY` | App auth | The raw PEM, as an alternative to the path. |
 | `GITHUB_APP_PRIVATE_KEY_B64` | App auth | The PEM, base64-encoded. **Use this in containers** (`base64 -w0 prlens-reviewer.pem`). |

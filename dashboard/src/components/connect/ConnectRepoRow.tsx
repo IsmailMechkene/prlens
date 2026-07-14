@@ -24,8 +24,18 @@ export function ConnectRepoRow({ repo, onChanged }: ConnectRepoRowProps) {
   const enable = async () => {
     setBusy(true)
     try {
-      await api.enableRepo(repo.name, repo.owner, repo.visibility)
+      const result = await api.enableRepo(repo.name, repo.owner, repo.visibility)
       onChanged()
+
+      // Enabling records the repo here; GitHub only sends pull requests once the
+      // PRLens App is installed on the account that owns it, and only the owner can
+      // do that. Send them straight there rather than landing on a settings page
+      // that looks ready and silently reviews nothing.
+      if (result.appInstalled === false && result.installUrl) {
+        window.location.assign(result.installUrl)
+        return
+      }
+
       navigate(detailPath)
     } finally {
       setBusy(false)
