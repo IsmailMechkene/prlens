@@ -94,8 +94,20 @@ def _validated_pem(raw: str, source: str) -> str:
 
 
 class GitHubClient:
-    def __init__(self):
+    def __init__(self, repo_name: str | None = None):
+        """A GitHub client scoped to ``repo_name`` when reviewing one repository.
+
+        Under App auth the token has to come from *the installation that owns the
+        repo*. A GitHub App is installed once per account, so the installation that
+        can see ``alice/api`` is a different one from the installation that can see
+        ``bob/api`` — a single GITHUB_APP_INSTALLATION_ID only ever works for the one
+        account it was issued for, and every other account's pull requests fail with
+        a 404 that reads like the repo does not exist. Passing the repo lets the
+        installation be looked up from the App itself.
+        """
         load_dotenv()
+
+        self._repo_name = repo_name
 
         if os.getenv("GITHUB_APP_ID"):
             self._auth_as_github_app()
@@ -110,7 +122,93 @@ class GitHubClient:
 
         self.client = Github(self.token)
 
-    def _load_private_key(self) -> str:
+    @classmethod
+    def app_slug(cls) -> str | None:
+        """This App's slug, for building its install URL. None if it cannot be read."""
+        load_dotenv()
+
+        app_id = os.getenv("GITHUB_APP_ID")
+        if not app_id:
+            return None
+
+        try:
+            response = requests.get(
+                "https://api.github.com/app",
+                headers={
+                    "Authorization": f"Bearer {cls._app_jwt(app_id, cls._load_private_key())}",
+                    "Accept": "application/vnd.github+json",
+                },
+                timeout=10,
+            )
+        except (requests.RequestException, ValueError):
+            logger.warning("Could not read the App's slug", exc_info=True)
+            return None
+
+        if response.status_code != 200:
+            logger.warning("Could not read the App's slug: %s", response.text)
+            return None
+
+        return response.json().get("slug")
+
+    @classmethod
+    def is_app_installed_on(cls, repo_name: str) -> bool | None:
+        """Whether this App is installed on ``repo_name``.
+
+        None means the question could not be answered — no App configured, or GitHub
+        could not be reached. Callers must treat that as "don't know", never as "not
+        installed", so a transient failure cannot tell a user their working repo is
+        broken.
+        """
+        load_dotenv()
+
+        app_id = os.getenv("GITHUB_APP_ID")
+        if not app_id:
+            return None
+
+        try:
+            response = requests.get(
+                f"https://api.github.com/repos/{repo_name}/installation",
+                headers={
+                    "Authorization": f"Bearer {cls._app_jwt(app_id, cls._load_private_key())}",
+                    "Accept": "application/vnd.github+json",
+                },
+                timeout=10,
+            )
+        except (requests.RequestException, ValueError):
+            logger.warning("Could not check the App installation for %s", repo_name, exc_info=True)
+            return None
+
+        if response.status_code == 200:
+            return True
+        if response.status_code == 404:
+            return False
+
+        logger.warning(
+            "Unexpected reply checking the App installation for %s: %s",
+            repo_name,
+            response.status_code,
+        )
+        return None
+
+    @classmethod
+    def verify_app_credentials(cls) -> None:
+        """Prove the App's id and private key are usable. Raises if they are not.
+
+        There is no installation token to fetch here: installations are resolved per
+        repo at review time. This is the most that can be checked without a repo, and
+        it is what a boot-time check needs — a key that cannot sign is the failure
+        that silently stops every review.
+        """
+        load_dotenv()
+
+        app_id = os.getenv("GITHUB_APP_ID")
+        if not app_id:
+            raise ValueError("GITHUB_APP_ID not found in environment")
+
+        cls._app_jwt(app_id, cls._load_private_key())
+
+    @staticmethod
+    def _load_private_key() -> str:
         """The GitHub App private key, from whichever source is available.
 
         Three sources, in order: a .pem on disk, the key itself, or the key base64
@@ -151,7 +249,8 @@ class GitHubClient:
             "file is not present, so set GITHUB_APP_PRIVATE_KEY_B64."
         )
 
-    def _app_jwt(self, app_id: str, private_key: str) -> str:
+    @staticmethod
+    def _app_jwt(app_id: str, private_key: str) -> str:
         payload = {
             "iat": int(time.time()) - 60,         # issued at (60 seconds ago to allow clock drift)
             "exp": int(time.time()) + (10 * 60),  # expires in 10 minutes (GitHub's max)
@@ -198,10 +297,43 @@ class GitHubClient:
 
         return self._authenticated_login
 
+    def _installation_id_for_repo(self, app_id: str, private_key: str, repo_name: str) -> str:
+        """The id of the installation of this App on ``repo_name``.
+
+        Raises when the App is not installed there: that is the one failure a repo
+        owner can actually fix, so it must not be papered over by falling back to
+        some other account's installation — whose token cannot read the repo either,
+        but fails much later and much less legibly.
+        """
+        response = requests.get(
+            f"https://api.github.com/repos/{repo_name}/installation",
+            headers={
+                "Authorization": f"Bearer {self._app_jwt(app_id, private_key)}",
+                "Accept": "application/vnd.github+json",
+            },
+            timeout=10,
+        )
+
+        if response.status_code == 404:
+            raise ValueError(
+                f"The PRLens GitHub App is not installed on '{repo_name}'. Enabling the "
+                "repo in the dashboard only records it in PRLens; the App still has to "
+                "be installed on the account that owns the repo, and granted access to "
+                "it, before GitHub will send pull request events."
+            )
+        if response.status_code != 200:
+            raise ValueError(
+                f"Could not find the App installation for '{repo_name}': "
+                f"{response.status_code} {response.text}"
+            )
+
+        return str(response.json()["id"])
+
     def _auth_as_github_app(self):
         private_key = getattr(self, '_private_key', None)
         app_id = getattr(self, '_app_id', None)
         installation_id = getattr(self, '_installation_id', None)
+        repo_name = getattr(self, '_repo_name', None)
 
         if not private_key:
             private_key = self._load_private_key()
@@ -212,9 +344,15 @@ class GitHubClient:
                 raise ValueError("GITHUB_APP_ID not found in environment")
 
         if not installation_id:
-            installation_id = os.getenv("GITHUB_APP_INSTALLATION_ID")
-            if not installation_id:
-                raise ValueError("GITHUB_APP_INSTALLATION_ID not found in environment")
+            if repo_name:
+                # Ask the App which installation owns this repo. GITHUB_APP_INSTALLATION_ID
+                # is not consulted: it is a single account's installation, and honouring it
+                # here is what stopped repos on every *other* account from being reviewed.
+                installation_id = self._installation_id_for_repo(app_id, private_key, repo_name)
+            else:
+                installation_id = os.getenv("GITHUB_APP_INSTALLATION_ID")
+                if not installation_id:
+                    raise ValueError("GITHUB_APP_INSTALLATION_ID not found in environment")
 
         jwt_token = self._app_jwt(app_id, private_key)
 

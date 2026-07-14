@@ -26,6 +26,7 @@ import type {
   AdminUserDetail,
   DashboardStats,
   DisconnectResult,
+  EnableResult,
   GitHubRepo,
   Repo,
   RepoDetail,
@@ -341,16 +342,17 @@ export const api = {
     })
   },
 
-  enableRepo(name: string, owner: string, visibility: Visibility): Promise<Repo> {
+  enableRepo(name: string, owner: string, visibility: Visibility): Promise<EnableResult> {
     if (USE_MOCKS) {
       const repo = mockRepos.find((r) => r.name === name)
       if (repo) {
         repo.connected = true
         repo.active = true
       }
-      return mock(repo ? stripDetail(repo) : { name, owner, visibility, updated: 'just now', connected: true, active: true })
+      const base = repo ? stripDetail(repo) : { name, owner, visibility, updated: 'just now', connected: true, active: true }
+      return mock({ ...base, appInstalled: true, installUrl: null })
     }
-    return request<Repo>(`/repos/${encodeURIComponent(name)}/enable`, {
+    return request<EnableResult>(`/repos/${encodeURIComponent(name)}/enable`, {
       method: 'POST',
       body: JSON.stringify({ owner, visibility }),
     })

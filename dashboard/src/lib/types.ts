@@ -69,6 +69,18 @@ export interface Repo {
 export type GitHubRepo = Omit<Repo, 'active'>
 
 /**
+ * The result of enabling a repo. Enabling records the repo in PRLens, but GitHub
+ * only delivers pull requests once the PRLens App is installed on the account that
+ * owns it — which the owner has to do on GitHub. `appInstalled: false` means it has
+ * not been, and no review will ever arrive until the user visits `installUrl`.
+ * `null` means the check itself failed, and nothing should be claimed either way.
+ */
+export interface EnableResult extends Repo {
+  appInstalled: boolean | null
+  installUrl: string | null
+}
+
+/**
  * Outcome of removing PRLens from a repo. `githubRemoved` is whether the repo was
  * also detached from the PRLens GitHub App — if it is false the dashboard rows are
  * gone but GitHub may still deliver pull requests for review.

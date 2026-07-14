@@ -3,6 +3,7 @@ import time
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
+import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from github import GithubException
@@ -125,6 +126,76 @@ def test_init_authenticates_as_github_app():
     assert client._private_key == TEST_PEM
     assert client._installation_id == "456"
     assert client._token_expiry > int(time.time())
+
+
+def _get_response(payload=None, status=200):
+    resp = MagicMock(name="Response")
+    resp.status_code = status
+    resp.json.return_value = payload if payload is not None else {}
+    resp.text = "not found" if status == 404 else "ok"
+    return resp
+
+
+def test_repo_scoped_client_resolves_the_installation_that_owns_the_repo():
+    # The regression this guards: GITHUB_APP_INSTALLATION_ID is one account's
+    # installation. Honouring it for a repo on a *different* account produced a token
+    # that cannot see the repo, and the pull request was never reviewed.
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(APP_ENV)), \
+         patch("prlens.github.client.jwt.encode", return_value="signed.jwt"), \
+         patch("prlens.github.client.requests.get", return_value=_get_response({"id": 999})) as mock_get, \
+         patch("prlens.github.client.requests.post", return_value=_post_response()) as mock_post, \
+         patch("prlens.github.client.Github"):
+        client = GitHubClient("other-account/test")
+
+    assert "/repos/other-account/test/installation" in mock_get.call_args.args[0]
+    # 999 (the repo's own installation), not 456 (the environment's).
+    assert "/app/installations/999/access_tokens" in mock_post.call_args.args[0]
+    assert client._installation_id == "999"
+
+
+def test_repo_scoped_client_raises_when_the_app_is_not_installed():
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(APP_ENV)), \
+         patch("prlens.github.client.jwt.encode", return_value="signed.jwt"), \
+         patch("prlens.github.client.requests.get", return_value=_get_response(status=404)), \
+         patch("prlens.github.client.Github"):
+        with pytest.raises(ValueError, match="not installed on 'other-account/test'"):
+            GitHubClient("other-account/test")
+
+
+def test_unscoped_client_still_uses_the_environment_installation():
+    # GitHub Actions mode passes the installation id explicitly and has no App-wide
+    # JWT lookup to make; that path must keep working.
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(APP_ENV)), \
+         patch("prlens.github.client.jwt.encode", return_value="signed.jwt"), \
+         patch("prlens.github.client.requests.get") as mock_get, \
+         patch("prlens.github.client.requests.post", return_value=_post_response()) as mock_post, \
+         patch("prlens.github.client.Github"):
+        GitHubClient()
+
+    mock_get.assert_not_called()
+    assert "/app/installations/456/access_tokens" in mock_post.call_args.args[0]
+
+
+@pytest.mark.parametrize("status, expected", [(200, True), (404, False), (500, None)])
+def test_is_app_installed_on(status, expected):
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(APP_ENV)), \
+         patch("prlens.github.client.jwt.encode", return_value="signed.jwt"), \
+         patch("prlens.github.client.requests.get", return_value=_get_response({"id": 1}, status)):
+        assert GitHubClient.is_app_installed_on("acme/api") is expected
+
+
+def test_is_app_installed_on_is_unknown_when_github_is_unreachable():
+    # Must be None, never False: a transient failure telling a user their App is not
+    # installed would send them off to reinstall a working App.
+    with patch("prlens.github.client.load_dotenv"), \
+         patch("prlens.github.client.os.getenv", side_effect=_env(APP_ENV)), \
+         patch("prlens.github.client.jwt.encode", return_value="signed.jwt"), \
+         patch("prlens.github.client.requests.get", side_effect=requests.RequestException("down")):
+        assert GitHubClient.is_app_installed_on("acme/api") is None
 
 
 def test_app_auth_reads_private_key_from_path():

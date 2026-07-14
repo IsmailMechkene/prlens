@@ -56,18 +56,24 @@ FRONTEND_ORIGIN = FRONTEND_URLS[0]
 
 
 def _check_github_credentials() -> None:
-    """Fail loudly at boot if the GitHub App credentials cannot be used.
+    """Fail loudly at boot if the GitHub credentials cannot be used.
 
-    Building the client is the step that reads the App's private key and exchanges
-    it for an installation token. Doing it once at startup turns "pull requests are
+    Reading the App's private key and signing with it is the step that fails when a
+    deployment is misconfigured. Doing it once at startup turns "pull requests are
     silently never reviewed" into a single, obvious line in the deployment log.
+
+    Which *installation* reviews a repo is decided per repo (see GitHubClient), so
+    there is nothing account-specific to check here.
     """
     try:
-        GitHubClient()
+        if os.getenv("GITHUB_APP_ID"):
+            GitHubClient.verify_app_credentials()
+        else:
+            GitHubClient()
     except Exception:
         logger.exception(
             "GitHub credentials are unusable — PULL REQUESTS WILL NOT BE REVIEWED. "
-            "Check GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID and the private key "
+            "Check GITHUB_APP_ID and the private key "
             "(GITHUB_APP_PRIVATE_KEY_B64 in a container: the .pem file is not in the image)."
         )
     else:
@@ -484,7 +490,9 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
             return
 
         settings = config.settings if config is not None else load_settings()
-        github_client = GitHubClient()
+        # Scoped to the repo: the review has to be posted by the App installation that
+        # owns it, which is not the same installation for every account PRLens serves.
+        github_client = GitHubClient(repo_name)
         llm_client = LLMClient(settings.llm_model)
         pr_fetcher = PRFetcher(github_client)
         analyzer = Analyzer(llm_client)
@@ -954,7 +962,21 @@ def enable_repo(
 
     db.refresh(installation)
 
-    return serialize_repo(installation)
+    # Enabling only records the repo in PRLens. GitHub sends no pull request events
+    # until the App is *installed* on the account that owns it — and an app cannot
+    # install itself, the owner has to grant it. Before this was reported, enabling a
+    # repo on an account without the App looked completely successful and then simply
+    # never reviewed anything. Tell the dashboard, and where to send the user.
+    installed = GitHubClient.is_app_installed_on(name)
+    slug = GitHubClient.app_slug() if installed is False else None
+
+    return {
+        **serialize_repo(installation),
+        # None = could not check; the dashboard must not nag on the strength of a
+        # failed lookup, so only an explicit False prompts the install.
+        "appInstalled": installed,
+        "installUrl": f"https://github.com/apps/{slug}/installations/new" if slug else None,
+    }
 
 
 @app.get("/api/github/repos")
