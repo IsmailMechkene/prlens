@@ -197,6 +197,17 @@
   color: var(--fg-subtle);
   cursor: default;
 }
+.mapHint {
+  margin: 9px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--fg-subtle);
+}
+.mapHint code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
 
 /* Save */
 .saveRow {

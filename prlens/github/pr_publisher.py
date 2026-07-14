@@ -304,10 +304,13 @@ class PRPublisher:
         individual_reviewers = []
 
         for reviewer in reviewers:
-            if reviewer.startswith("team:"):
-                team_reviewers.append(reviewer.removeprefix("team:"))
-            elif reviewer != pull_request.user.login:
-                individual_reviewers.append(reviewer)
+            kind, name = _parse_reviewer(reviewer)
+            if not name:
+                continue
+            if kind == "team":
+                team_reviewers.append(name)
+            elif name != pull_request.user.login:
+                individual_reviewers.append(name)
 
         try:
             if individual_reviewers:
@@ -315,4 +318,29 @@ class PRPublisher:
             if team_reviewers:
                 pull_request.create_review_request(team_reviewers=team_reviewers)
         except GithubException as e:
-            logger.warning("Failed to assign reviewers: %s", e)
+            # A rejected request is only ever a warning, so a reviewer GitHub will
+            # not accept is invisible unless the name is in the message.
+            logger.warning(
+                "Failed to assign reviewers %s / teams %s on %s: %s",
+                individual_reviewers, team_reviewers, pull_request.html_url, e,
+            )
+
+
+def _parse_reviewer(raw: str) -> tuple[str, str]:
+    """A configured reviewer -> ("user" | "team", name-as-GitHub-wants-it).
+
+    The API takes a bare login ("octocat") and a bare team slug, but the value
+    reaching here is typed by a human: the dashboard's own field invited an "@"
+    and GitHub's UI shows handles that way, so "@octocat" is what actually gets
+    stored — and it is rejected with a 422 that this module only logs. Strip the
+    sigil rather than fail on it, and accept "org/team" alongside "team:slug",
+    which is how a team is written everywhere else on GitHub.
+    """
+    name = raw.strip().lstrip("@")
+    if not name:
+        return "user", ""
+    if name.startswith("team:"):
+        return "team", name.removeprefix("team:").strip().lstrip("@")
+    if "/" in name:
+        return "team", name.rsplit("/", 1)[-1].strip()
+    return "user", name

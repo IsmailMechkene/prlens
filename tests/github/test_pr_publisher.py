@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import pytest
 from github import GithubException
 
 from prlens.config.settings import Settings
@@ -378,6 +379,44 @@ def test_assign_reviewers_team(mock_github_client, mock_pull_request):
     publisher.assign_reviewers(mock_pull_request, result, settings)
 
     mock_pull_request.create_review_request.assert_called_once_with(team_reviewers=["sec-team"])
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [
+        # The dashboard stores what the user typed, and a GitHub handle is written
+        # with an "@" everywhere GitHub shows one. The API rejects it, so it is
+        # stripped here rather than 422-ing into a warning nobody reads.
+        ("@alice", {"reviewers": ["alice"]}),
+        ("alice", {"reviewers": ["alice"]}),
+        ("  alice  ", {"reviewers": ["alice"]}),
+        ("team:sec-team", {"team_reviewers": ["sec-team"]}),
+        ("@team:sec-team", {"team_reviewers": ["sec-team"]}),
+        # "org/team" is how a team is written everywhere else on GitHub.
+        ("@acme/appsec", {"team_reviewers": ["appsec"]}),
+        ("acme/appsec", {"team_reviewers": ["appsec"]}),
+    ],
+)
+def test_assign_reviewers_normalises_configured_name(
+    mock_github_client, mock_pull_request, configured, expected
+):
+    settings = Settings(reviewers_mapping={ReviewType.SECURITY: configured})
+    result = ReviewResult(
+        score=40,
+        total_files=1,
+        has_critical_issues=True,
+        comments=[ReviewComment(
+            file_path="example.py",
+            type=ReviewType.SECURITY,
+            severity=Severity.CRITICAL,
+            message="Hardcoded secret.",
+        )],
+    )
+
+    publisher = PRPublisher(mock_github_client, settings)
+    publisher.assign_reviewers(mock_pull_request, result, settings)
+
+    mock_pull_request.create_review_request.assert_called_once_with(**expected)
 
 
 def test_assign_reviewers_handles_github_exception(mock_github_client, mock_pull_request):

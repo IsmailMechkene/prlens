@@ -238,7 +238,7 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
                 className={styles.mapVal}
                 value={m.value}
                 autoFocus={i === focusRow}
-                placeholder="@team or @user"
+                placeholder="username or team:slug"
                 aria-label={`Reviewer for ${m.key}`}
                 onChange={(e) => setMapping(i, { value: e.target.value })}
               />
@@ -262,6 +262,11 @@ export function ReviewSettings({ repo, initial }: ReviewSettingsProps) {
             {unusedTypes.length === 0 ? 'All review types mapped' : 'Add mapping'}
           </button>
         </div>
+        <p className={styles.mapHint}>
+          A GitHub username (no “@”) or <code>team:slug</code>. Reviewers are only
+          requested when a PR has a <strong>critical</strong> issue, and must be
+          collaborators on the repo.
+        </p>
       </div>
 
       {/* Save */}

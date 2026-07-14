@@ -36,8 +36,8 @@ export const mockRepos: RepoDetail[] = [
       changesThreshold: 50,
       excluded: ['*.lock', 'dist/**'],
       reviewerMap: [
-        { key: 'security', value: '@acme/appsec' },
-        { key: 'performance', value: '@dkessler' },
+        { key: 'security', value: 'team:appsec' },
+        { key: 'performance', value: 'dkessler' },
       ],
     },
   }),
@@ -133,7 +133,7 @@ function defaultDetailExtras(): Omit<RepoDetail, keyof import('./types').Repo | 
       approveThreshold: 80,
       changesThreshold: 50,
       excluded: ['*.lock', 'dist/**'],
-      reviewerMap: [{ key: 'security', value: '@acme/appsec' }],
+      reviewerMap: [{ key: 'security', value: 'team:appsec' }],
     },
   }
 }
