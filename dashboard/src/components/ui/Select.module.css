@@ -43,16 +43,14 @@
   transform: rotate(180deg);
 }
 
+/* Portalled to <body>; top/left/width/max-height are set inline from the
+   trigger's position, so a card's overflow:hidden can't clip it. */
 .menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 5px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  z-index: 1000;
   margin: 0;
   padding: 4px;
   list-style: none;
-  max-height: 220px;
   overflow-y: auto;
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);

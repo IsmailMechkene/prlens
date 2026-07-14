@@ -29,7 +29,12 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/repos/:name" element={<RepoDetailPage />} />
+              {/* Splat, not ":name": a repo name is a GitHub full_name
+                  ("acme/api-gateway"), and a :param matches a single path segment.
+                  A URL that reached the browser with the slash decoded therefore
+                  matched no route and fell through to the catch-all below, which
+                  bounced the user out to the landing page on every reload. */}
+              <Route path="/repos/*" element={<RepoDetailPage />} />
               <Route path="/connect" element={<ConnectPage />} />
               {/* The admin section sits inside the same shell as everything else, so
                   an admin moves between it and their own dashboard the way they move

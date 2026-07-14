@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { Icon } from './Icon'
 import styles from './Select.module.css'
@@ -20,24 +21,75 @@ interface SelectProps {
   valueStyle?: CSSProperties
 }
 
+/** Gap between the trigger and the menu, and the menu's min gap to the viewport edge. */
+const GAP = 5
+const MARGIN = 8
+const MAX_HEIGHT = 220
+
+interface MenuPos {
+  top: number
+  left: number
+  width: number
+  maxHeight: number
+}
+
 /**
  * A styled dropdown. The native <select> renders its popup with the OS's own
  * chrome, which ignores the app's theme and can't be styled, so this draws the
  * menu itself and keeps the listbox keyboard behaviour that the native control
  * would otherwise have given us for free.
+ *
+ * The menu is portalled to <body> and positioned as fixed: cards clip their
+ * content with overflow:hidden to round their corners, which would otherwise cut
+ * the menu off at the card's bottom edge and make the last options unreachable.
  */
 export function Select({ value, options, onChange, label, className, valueStyle }: SelectProps) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
-  const root = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<MenuPos | null>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const menu = useRef<HTMLUListElement>(null)
 
   const selected = options.find((o) => o.value === value)
 
+  const place = useCallback(() => {
+    const el = trigger.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const below = window.innerHeight - r.bottom - GAP - MARGIN
+    const above = r.top - GAP - MARGIN
+    // Drop upwards when the space under the trigger is too cramped to be usable.
+    const up = below < Math.min(MAX_HEIGHT, 120) && above > below
+    const maxHeight = Math.max(80, Math.min(MAX_HEIGHT, up ? above : below))
+    setPos({
+      top: up ? r.top - GAP - maxHeight : r.bottom + GAP,
+      left: r.left,
+      width: r.width,
+      maxHeight,
+    })
+  }, [])
+
+  // Fixed coordinates go stale as soon as anything scrolls, so recompute them.
+  // Capture catches scrolling in the app's inner scroll container too, not just
+  // on the window.
+  useLayoutEffect(() => {
+    if (!open) return
+    place()
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open, place])
+
   // A click anywhere else dismisses the menu, matching what a native select does.
+  // The menu is outside the trigger's subtree now, so it needs its own check.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (!trigger.current?.contains(t) && !menu.current?.contains(t)) setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -81,8 +133,9 @@ export function Select({ value, options, onChange, label, className, valueStyle 
   }
 
   return (
-    <div ref={root} className={`${styles.root} ${className ?? ''}`} onKeyDown={onKeyDown}>
+    <div className={`${styles.root} ${className ?? ''}`} onKeyDown={onKeyDown}>
       <button
+        ref={trigger}
         type="button"
         className={styles.trigger}
         aria-haspopup="listbox"
@@ -96,24 +149,38 @@ export function Select({ value, options, onChange, label, className, valueStyle 
         <Icon name="chevron-down" size={14} className={styles.chevron} data-open={open} />
       </button>
 
-      {open ? (
-        <ul className={styles.menu} role="listbox" aria-label={label}>
-          {options.map((o, i) => (
-            <li
-              key={o.value}
-              role="option"
-              aria-selected={o.value === value}
-              className={styles.option}
-              data-active={i === active}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => choose(o.value)}
+      {open && pos
+        ? createPortal(
+            <ul
+              ref={menu}
+              className={styles.menu}
+              role="listbox"
+              aria-label={label}
+              style={{
+                top: pos.top,
+                left: pos.left,
+                width: pos.width,
+                maxHeight: pos.maxHeight,
+              }}
             >
-              <span className={styles.optionLabel}>{o.label}</span>
-              {o.value === value ? <Icon name="check" size={13} /> : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+              {options.map((o, i) => (
+                <li
+                  key={o.value}
+                  role="option"
+                  aria-selected={o.value === value}
+                  className={styles.option}
+                  data-active={i === active}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => choose(o.value)}
+                >
+                  <span className={styles.optionLabel}>{o.label}</span>
+                  {o.value === value ? <Icon name="check" size={13} /> : null}
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

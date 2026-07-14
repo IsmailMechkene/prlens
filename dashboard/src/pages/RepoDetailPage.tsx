@@ -63,7 +63,9 @@ function deltaColor(delta: number): string {
 }
 
 export function RepoDetailPage() {
-  const { name = '' } = useParams()
+  // The route is "/repos/*", so the repo's full_name arrives as the splat param —
+  // already decoded, whether the URL carried the slash raw or as %2F.
+  const { '*': name = '' } = useParams()
   const repo = useAsync(() => api.getRepo(name), [name])
   const reviews = useAsync(() => api.getRepoReviews(name), [name])
 

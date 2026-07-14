@@ -24,7 +24,7 @@ export function ReviewsTable({ reviews }: { reviews: Review[] }) {
             <tr
               key={`${rv.repo}-${rv.number}`}
               className={styles.row}
-              onClick={() => navigate(`/repos/${encodeURIComponent(rv.repo)}`)}
+              onClick={() => navigate(`/repos/${rv.repo}`)}
             >
               <td className={styles.td}>
                 <span className={styles.repo}>

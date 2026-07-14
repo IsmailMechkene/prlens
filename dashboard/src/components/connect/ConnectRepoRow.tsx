@@ -17,9 +17,9 @@ export function ConnectRepoRow({ repo, onChanged }: ConnectRepoRowProps) {
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
-  // repo.name is the GitHub full_name ("acme/api-gateway"), so it must be encoded
-  // to stay a single path segment under the /repos/:name route.
-  const detailPath = `/repos/${encodeURIComponent(repo.name)}`
+  // repo.name is the GitHub full_name ("acme/api-gateway"). The /repos/* route
+  // takes the slash as-is, so the name goes in the path unencoded.
+  const detailPath = `/repos/${repo.name}`
 
   const enable = async () => {
     setBusy(true)
