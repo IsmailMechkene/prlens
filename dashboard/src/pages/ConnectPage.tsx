@@ -28,6 +28,8 @@ export function ConnectPage() {
   // Lists everything on GitHub, not just repos PRLens already knows about,
   // so a brand-new repo can be enabled from here.
   const repos = useAsync(() => api.getGitHubRepos(), [])
+  const user = useAsync(() => api.getUser(), [])
+  const username = user.data?.handle.replace(/^@/, '') ?? user.data?.name ?? 'your account'
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -43,7 +45,7 @@ export function ConnectPage() {
     <div className={styles.container}>
       <h1 className={styles.title}>Connect a repository</h1>
       <p className={styles.subtitle}>
-        Enable PRLens on repositories in <span className={styles.org}>acme-inc</span>. It will start
+        Enable PRLens on repositories in <span className={styles.org}>{username}</span>. It will start
         reviewing new pull requests immediately.
       </p>
 
