@@ -72,7 +72,7 @@ def test_submit_review_approves(mock_github_client, mock_pull_request, settings)
     result = ReviewResult(score=90, total_files=1, positives=["Clean code."])
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     mock_pull_request.create_review.assert_called_once()
     call_args = mock_pull_request.create_review.call_args[1]
@@ -178,7 +178,7 @@ def test_post_inline_comments_issue_comment_for_none_line(mock_github_client, mo
     )]
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.post_inline_comments(mock_pull_request, comments, "test-user")
+    publisher.post_inline_comments(mock_pull_request, comments)
 
     mock_pull_request.create_issue_comment.assert_called_once()
     mock_pull_request.create_review_comment.assert_not_called()
@@ -197,7 +197,7 @@ def test_submit_review_requests_changes(mock_github_client, mock_pull_request, s
     )
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     call_args = mock_pull_request.create_review.call_args[1]
     assert call_args["event"] == "REQUEST_CHANGES"
@@ -211,7 +211,7 @@ def test_submit_review_incomplete(mock_github_client, mock_pull_request, setting
     )
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     call_args = mock_pull_request.create_review.call_args[1]
     assert call_args["event"] == "COMMENT"
@@ -226,7 +226,7 @@ def test_submit_review_total_failure(mock_github_client, mock_pull_request, sett
     )
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     call_args = mock_pull_request.create_review.call_args[1]
     assert call_args["event"] == "COMMENT"
@@ -237,7 +237,7 @@ def test_submit_review_comment_no_files(mock_github_client, mock_pull_request, s
     result = ReviewResult(score=70, total_files=0)
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     call_args = mock_pull_request.create_review.call_args[1]
     assert call_args["event"] == "COMMENT"
@@ -257,7 +257,7 @@ def test_submit_review_comment_default(mock_github_client, mock_pull_request, se
     )
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     call_args = mock_pull_request.create_review.call_args[1]
     assert call_args["event"] == "COMMENT"
@@ -272,7 +272,7 @@ def test_submit_review_handles_github_exception(mock_github_client, mock_pull_re
 
     publisher = PRPublisher(mock_github_client, settings)
     # Should swallow the exception and not raise.
-    publisher.submit_review(mock_pull_request, result, "test-user")
+    publisher.submit_review(mock_pull_request, result)
 
     mock_pull_request.create_review.assert_called_once()
 
@@ -289,26 +289,81 @@ def test_dismiss_previous_reviews(mock_github_client, mock_pull_request, setting
     mock_pull_request.get_reviews.return_value = [matching, other]
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher._dismiss_previous_reviews(mock_pull_request, "test-user")
+    publisher._dismiss_previous_reviews(mock_pull_request)
 
     matching.dismiss.assert_called_once()
     other.dismiss.assert_not_called()
 
 
-def test_delete_previous_inline_comments(mock_github_client, mock_pull_request, settings):
+def test_delete_previous_findings(mock_github_client, mock_pull_request, settings):
     mine = MagicMock()
-    mine.user.login = "test-user"
+    mine.user.login = "prlens[bot]"
+    mine.body = f"{PRPublisher.FINDING_MARKER}\n🔴 Old finding."
 
     theirs = MagicMock()
     theirs.user.login = "someone-else"
+    theirs.body = "I disagree with the bot."
 
     mock_pull_request.get_review_comments.return_value = [mine, theirs]
+    mock_pull_request.get_issue_comments.return_value = []
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher._delete_previous_inline_comments(mock_pull_request, "test-user")
+    publisher._delete_previous_findings(mock_pull_request)
 
     mine.delete.assert_called_once()
     theirs.delete.assert_not_called()
+
+
+def test_delete_previous_findings_sweeps_issue_comment_fallbacks(
+    mock_github_client, mock_pull_request, settings
+):
+    """A finding with no line is posted as an issue comment, and used to survive.
+
+    Only *review* comments were swept, so each re-review left another copy of every
+    line-less finding on the PR while the summary was correctly replaced.
+    """
+    fallback = MagicMock()
+    fallback.user.login = "prlens[bot]"
+    fallback.body = f"{PRPublisher.FINDING_MARKER}\n🔵 General note."
+
+    summary = MagicMock()
+    summary.user.login = "prlens[bot]"
+    summary.body = f"{PRPublisher.SUMMARY_MARKER}\n## PRLens Review Summary"
+
+    human = MagicMock()
+    human.user.login = "someone-else"
+    human.body = "Looks good to me."
+
+    mock_pull_request.get_review_comments.return_value = []
+    mock_pull_request.get_issue_comments.return_value = [fallback, summary, human]
+
+    publisher = PRPublisher(mock_github_client, settings)
+    publisher._delete_previous_findings(mock_pull_request)
+
+    fallback.delete.assert_called_once()
+    # post_summary has already replaced the summary by this point in the run.
+    summary.delete.assert_not_called()
+    human.delete.assert_not_called()
+
+
+def test_delete_previous_findings_spares_the_pr_author(
+    mock_github_client, mock_pull_request, settings
+):
+    """The PR's author used to be passed in as the "authenticated user".
+
+    Their own review comments were therefore deleted on every re-review.
+    """
+    author = MagicMock()
+    author.user.login = "IsmailMechkene"
+    author.body = "Deliberate — see the issue."
+
+    mock_pull_request.get_review_comments.return_value = [author]
+    mock_pull_request.get_issue_comments.return_value = []
+
+    publisher = PRPublisher(mock_github_client, settings)
+    publisher._delete_previous_findings(mock_pull_request)
+
+    author.delete.assert_not_called()
 
 
 def test_post_inline_comments_falls_back_to_issue_comment(mock_github_client, mock_pull_request, settings):
@@ -325,7 +380,7 @@ def test_post_inline_comments_falls_back_to_issue_comment(mock_github_client, mo
     )
 
     publisher = PRPublisher(mock_github_client, settings)
-    publisher.post_inline_comments(mock_pull_request, comments, "test-user")
+    publisher.post_inline_comments(mock_pull_request, comments)
 
     mock_pull_request.create_review_comment.assert_called_once()
     mock_pull_request.create_issue_comment.assert_called_once()

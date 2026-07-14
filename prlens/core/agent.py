@@ -21,10 +21,14 @@ class Agent:
 
         result = self.analyzer.analyze_pr(pr, self.settings)
 
+        # `actor` is the PR's author and is deliberately not passed on: it used to be
+        # handed to the publisher as the "authenticated user" whose comments may be
+        # cleaned up on a re-review, which is a human, not PRLens. The publisher now
+        # resolves its own identity from the GitHub client.
         self.pr_publisher.apply_labels(github_pr, result)
         self.pr_publisher.post_summary(github_pr, result)
-        self.pr_publisher.post_inline_comments(github_pr, result.comments, actor)
-        self.pr_publisher.submit_review(github_pr, result, actor)
+        self.pr_publisher.post_inline_comments(github_pr, result.comments)
+        self.pr_publisher.submit_review(github_pr, result)
         self.pr_publisher.assign_reviewers(github_pr, result, self.settings)
 
         return pr, result

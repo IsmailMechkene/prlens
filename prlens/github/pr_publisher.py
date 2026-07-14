@@ -25,6 +25,11 @@ class ReviewOutcome(Enum):
 
 class PRPublisher:
     SUMMARY_MARKER = "<!-- prlens-summary -->"
+    # Stamped on every finding PRLens posts, so a re-review can recognise its own
+    # previous findings without having to work out who authored them. Kept distinct
+    # from SUMMARY_MARKER: the summary is posted *before* the findings are cleared,
+    # so a single marker would have the finding sweep delete the fresh summary.
+    FINDING_MARKER = "<!-- prlens-finding -->"
 
     SEVERITY_EMOJI = {
         Severity.INFO: "🔵",
@@ -134,26 +139,61 @@ class PRPublisher:
 {recommendations_text}
 """
 
-    def _delete_previous_inline_comments(self, pull_request: PullRequest, authenticated_user: str) -> None:
+    def _own_logins(self) -> set[str]:
+        """The logins whose comments on a PR are PRLens's own.
+
+        "github-actions[bot]" is unconditional: that is who the packaged Action
+        posts as. The other is whoever this client authenticates as — the App's bot
+        in the webhook deployment, the token's user for a PAT.
+        """
+        logins = {"github-actions[bot]"}
+        login = self.client.get_authenticated_login()
+        if login:
+            logins.add(login)
+        return logins
+
+    def _is_own_finding(self, body: str | None, login: str | None, own: set[str]) -> bool:
+        if self.FINDING_MARKER in (body or ""):
+            return True
+        # Findings posted before the marker existed carry no evidence but their
+        # author, so fall back to that. Never matches a human: `own` is this
+        # client's own identity, not anybody named in the webhook payload.
+        return login in own
+
+    def _delete_previous_findings(self, pull_request: PullRequest) -> None:
+        own = self._own_logins()
+
         for comment in pull_request.get_review_comments():
-            if comment.user.login in ("github-actions[bot]", authenticated_user):
+            if self._is_own_finding(comment.body, comment.user.login, own):
                 comment.delete()
 
-    def _dismiss_previous_reviews(self, pull_request: PullRequest, authenticated_user: str) -> None:
+        # A finding with no line, or one GitHub refused to attach to the diff, is
+        # posted as an issue comment (see below). Those were never swept — only
+        # *review* comments were — so every re-review left another copy behind.
+        # The summary is an issue comment too, and post_summary has already put the
+        # current one up by now, so it is explicitly spared.
+        for comment in pull_request.get_issue_comments():
+            body = comment.body or ""
+            if self.SUMMARY_MARKER in body:
+                continue
+            if self._is_own_finding(body, comment.user.login, own):
+                comment.delete()
+
+    def _dismiss_previous_reviews(self, pull_request: PullRequest) -> None:
+        own = self._own_logins()
         for review in pull_request.get_reviews():
-            if review.user.login in ("github-actions[bot]", authenticated_user) and review.state in (
-            "APPROVED", "CHANGES_REQUESTED"):
+            if review.user.login in own and review.state in ("APPROVED", "CHANGES_REQUESTED"):
                 review.dismiss(message="Superseded by a new PRLens review.")
 
-    def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment], authenticated_user: str) -> None:
-        self._delete_previous_inline_comments(pull_request, authenticated_user)
+    def post_inline_comments(self, pull_request: PullRequest, comments: list[ReviewComment]) -> None:
+        self._delete_previous_findings(pull_request)
 
         commit = pull_request.get_commits().reversed[0]
 
         for comment in comments:
             emoji = self.SEVERITY_EMOJI.get(comment.severity, "⚪")
 
-            body = f"{emoji} {comment.message}"
+            body = f"{self.FINDING_MARKER}\n{emoji} {comment.message}"
 
             if comment.suggestion:
                 body += f"\n\n💡 **Suggestion:** {comment.suggestion}"
@@ -214,8 +254,8 @@ class PRPublisher:
         if labels:
             pull_request.set_labels(*labels)
 
-    def submit_review(self, pull_request: PullRequest, result: ReviewResult, authenticated_user: str) -> None:
-        self._dismiss_previous_reviews(pull_request, authenticated_user)
+    def submit_review(self, pull_request: PullRequest, result: ReviewResult) -> None:
+        self._dismiss_previous_reviews(pull_request)
 
         outcome = self._determine_review_outcome(result)
 

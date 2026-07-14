@@ -91,6 +91,9 @@ def mock_github_client(mock_repo, mock_pull_request) -> MagicMock:
     client = MagicMock(spec=GitHubClient)
     client.get_repo.return_value = mock_repo
     mock_repo.get_pull.return_value = mock_pull_request
+    # Who PRLens posts as. The publisher recognises its own comments by this, so a
+    # MagicMock here would make every "is this ours?" check meaningless.
+    client.get_authenticated_login.return_value = "prlens[bot]"
     return client
 
 

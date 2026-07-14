@@ -151,6 +151,53 @@ class GitHubClient:
             "file is not present, so set GITHUB_APP_PRIVATE_KEY_B64."
         )
 
+    def _app_jwt(self, app_id: str, private_key: str) -> str:
+        payload = {
+            "iat": int(time.time()) - 60,         # issued at (60 seconds ago to allow clock drift)
+            "exp": int(time.time()) + (10 * 60),  # expires in 10 minutes (GitHub's max)
+            "iss": app_id,                        # issuer = your App ID
+        }
+        return jwt.encode(payload, private_key, algorithm="RS256")
+
+    def get_authenticated_login(self) -> str | None:
+        """The login that authors this client's comments, or None if unknowable.
+
+        Needed to recognise PRLens's own comments on a PR — the only safe basis for
+        deleting them on a re-review. An installation posts as the App's bot user
+        ("<app-slug>[bot]"), which is not derivable from the installation token, so
+        the App itself has to be asked. Cached: it cannot change for a process.
+
+        None means "could not tell", and every caller must then leave comments
+        alone rather than guess, because the cost of guessing wrong is deleting
+        somebody else's comment.
+        """
+        if hasattr(self, "_authenticated_login"):
+            return self._authenticated_login
+
+        self._authenticated_login = None
+        try:
+            if getattr(self, "_app_id", None):
+                response = requests.get(
+                    "https://api.github.com/app",
+                    headers={
+                        "Authorization": f"Bearer {self._app_jwt(self._app_id, self._private_key)}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    timeout=10,
+                )
+                if response.status_code == 200:
+                    slug = response.json().get("slug")
+                    if slug:
+                        self._authenticated_login = f"{slug}[bot]"
+                else:
+                    logger.warning("Could not read the App's identity: %s", response.text)
+            else:
+                self._authenticated_login = self.client.get_user().login
+        except (requests.RequestException, GithubException, ValueError, KeyError):
+            logger.warning("Could not determine the authenticated GitHub identity", exc_info=True)
+
+        return self._authenticated_login
+
     def _auth_as_github_app(self):
         private_key = getattr(self, '_private_key', None)
         app_id = getattr(self, '_app_id', None)
@@ -169,14 +216,7 @@ class GitHubClient:
             if not installation_id:
                 raise ValueError("GITHUB_APP_INSTALLATION_ID not found in environment")
 
-
-        payload = {
-            "iat": int(time.time()) - 60,         # issued at (60 seconds ago to allow clock drift)
-            "exp": int(time.time()) + (10 * 60),  # expires in 10 minutes (GitHub's max)
-            "iss": app_id,                        # issuer = your App ID
-        }
-
-        jwt_token = jwt.encode(payload, private_key, algorithm="RS256")
+        jwt_token = self._app_jwt(app_id, private_key)
 
         response = requests.post(
             f"https://api.github.com/app/installations/{installation_id}/access_tokens",
