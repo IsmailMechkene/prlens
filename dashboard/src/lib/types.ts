@@ -118,9 +118,21 @@ export interface Stat {
   iconColor: string
 }
 
+/**
+ * The signed-in user's free-review usage against the non-admin cap. `null` for
+ * admins, who are exempt — see the /api/stats handler.
+ */
+export interface ReviewLimit {
+  used: number
+  limit: number
+  reached: boolean
+}
+
 /** Aggregate dashboard metrics. */
 export interface DashboardStats {
   stats: Stat[]
+  /** Present (non-null) only for capped non-admin users. */
+  reviewLimit?: ReviewLimit | null
 }
 
 /** One slice of the issues-breakdown donut. */

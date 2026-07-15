@@ -11,6 +11,52 @@
   margin-bottom: 30px;
 }
 
+/* Free-review usage banner, shown only to capped non-admins (see /api/stats).
+   The default state is a quiet informational strip; .limitBannerReached tints it
+   with the danger accent so "you can't get more reviews" reads at a glance. */
+.limitBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--rad-md, 8px);
+  background: var(--bg-surface);
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.limitBannerReached {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border-default));
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+.limitBannerIcon {
+  flex-shrink: 0;
+  display: flex;
+}
+.limitBannerText {
+  flex: 1;
+  min-width: 0;
+}
+.limitBannerText strong {
+  font-weight: 600;
+}
+/* Slim usage meter; only rendered while the user still has reviews left. */
+.limitMeter {
+  flex-shrink: 0;
+  width: 96px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.limitMeterFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--pa);
+}
+
 /* Mirrors StatCard: same padding, same label-then-value rhythm, so the tiles don't
    resize or shift when the real numbers arrive. */
 .statSkeleton {

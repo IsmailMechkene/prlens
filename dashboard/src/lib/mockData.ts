@@ -67,6 +67,7 @@ export const mockDashboardStats: DashboardStats = {
     { id: 'issues', label: 'Issues caught', value: '3,907', delta: '+128', trend: 'neutral', icon: 'shield-alert', iconColor: 'var(--danger)' },
     { id: 'repos', label: 'Repos connected', value: '4', delta: '4 active', trend: 'neutral', icon: 'book-marked', iconColor: 'var(--done)' },
   ],
+  reviewLimit: { used: 7, limit: 10, reached: false },
 }
 
 /**

@@ -126,6 +126,16 @@ _processing_prs: set = set()
 _last_processed: dict = {}
 DEBOUNCE_SECONDS = 30
 
+# This is a personal project, not a product with billing: non-admins get enough
+# reviews to try PRLens on a real repo, then stop consuming LLM budget. Admins
+# (granted out of band, see database.models) are exempt.
+NON_ADMIN_REVIEW_LIMIT = 10
+
+# Stamped on the "you've hit the limit" comment so it is posted at most once per
+# PR: every later push (a synchronize event) re-enters run_agent and would
+# otherwise pile another identical notice onto the thread.
+LIMIT_NOTICE_MARKER = "<!-- prlens-limit-notice -->"
+
 # Installation.languages stores the enabled SupportedLanguages values; the
 # dashboard renders every language in this map, in this order.
 LANGUAGE_DISPLAY_NAMES: dict[SupportedLanguages, str] = {
@@ -378,6 +388,86 @@ def _repo_config(repo_name: str) -> _RepoConfig | None:
         return None
 
 
+def _review_limit_reached(repo_name: str) -> bool:
+    """True only if every active installation owner for this repo is a non-admin
+    who has already used up NON_ADMIN_REVIEW_LIMIT reviews.
+
+    A repo can be connected by several users (see _repo_config); the review is
+    shared, so it is only blocked once *none* of the owners can still afford it.
+    As with _repo_config, a database problem must not stop a review that would
+    otherwise run, so any failure here falls back to allowing it.
+    """
+    session_factory = _background_session_factory()
+    if session_factory is None:
+        return False
+
+    try:
+        db = session_factory()
+        try:
+            owner_ids = {
+                inst.user_id
+                for inst in db.query(Installation).filter(
+                    Installation.repo_name == repo_name,
+                    Installation.active.is_(True),
+                ).all()
+            }
+            if not owner_ids:
+                return False
+
+            for user_id in owner_ids:
+                owner = db.query(User).filter(User.id == user_id).first()
+                if owner is None or owner.role == ROLE_ADMIN:
+                    return False
+
+                review_count = (
+                    db.query(Review)
+                    .join(Installation)
+                    .filter(Installation.user_id == user_id)
+                    .count()
+                )
+                if review_count < NON_ADMIN_REVIEW_LIMIT:
+                    return False
+
+            return True
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Could not check review limit for %s; allowing review", repo_name)
+        return False
+
+
+def _post_limit_notice(repo_name: str, pr_number: int) -> None:
+    """Tell the PR, once, that the free-review limit has been reached.
+
+    Best effort and idempotent: the notice is skipped if a copy carrying
+    LIMIT_NOTICE_MARKER is already on the thread, so re-pushes to a capped PR do
+    not stack notices. This costs a GitHub API call and, crucially, no LLM call —
+    which is the whole reason the review is blocked before the clients are built.
+    A failure here must not surface as an ASGI traceback, so everything is caught.
+    """
+    try:
+        github_client = GitHubClient(repo_name)
+        repo = github_client.get_repo(repo_name)
+        pull_request = repo.get_pull(pr_number)
+
+        for comment in pull_request.get_issue_comments():
+            if LIMIT_NOTICE_MARKER in (comment.body or ""):
+                return
+
+        pull_request.create_issue_comment(
+            body=(
+                f"{LIMIT_NOTICE_MARKER}\n"
+                "🔒 **PRLens review limit reached**\n\n"
+                f"This account has used its {NON_ADMIN_REVIEW_LIMIT} free reviews, so "
+                "PRLens won't review further pull requests. PRLens is a personal "
+                "project and this cap keeps its running costs down.\n\n"
+                "If you'd like more, get in touch with the maintainer."
+            )
+        )
+    except Exception:
+        logger.exception("Could not post the review-limit notice on %s#%s", repo_name, pr_number)
+
+
 def _outcome_to_status(result: ReviewResult, publisher: PRPublisher) -> str:
     """The value stored in ``Review.status`` for a finished review.
 
@@ -487,6 +577,11 @@ def run_agent(repo_name: str, pr_number: int, actor: str) -> None:
 
         if config is not None and not config.active:
             logger.info("Paused: reviewing is disabled for %s", repo_name)
+            return
+
+        if _review_limit_reached(repo_name):
+            logger.info("Review limit reached: not reviewing %s", pr_key)
+            _post_limit_notice(repo_name, pr_number)
             return
 
         settings = config.settings if config is not None else load_settings()
@@ -788,6 +883,15 @@ def get_stats(current_user: User = Depends(get_current_user), db: Session = Depe
     ).count()
 
     return {
+        # Non-admins are capped (see NON_ADMIN_REVIEW_LIMIT); the dashboard renders
+        # a "N of 10 free reviews" banner from this so the cap is visible before and
+        # when it is hit, not just as PRs silently going unreviewed. Admins are
+        # exempt, so they get null and the banner never shows.
+        "reviewLimit": None if current_user.role == ROLE_ADMIN else {
+            "used": total_prs,
+            "limit": NON_ADMIN_REVIEW_LIMIT,
+            "reached": total_prs >= NON_ADMIN_REVIEW_LIMIT,
+        },
         "stats": [
             {
                 "id": "prs",
