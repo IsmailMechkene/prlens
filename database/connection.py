@@ -85,6 +85,31 @@ def _add_user_role_column() -> None:
         logger.exception("Could not add the users.role column")
 
 
+def _add_user_reviews_used_column() -> None:
+    """Add ``users.reviews_used`` to databases created before the review cap.
+
+    Same reasoning as ``_add_user_role_column``: ``create_all`` never adds a column
+    to an existing table, so a pre-cap ``users`` table would fail every query that
+    selects it. The DEFAULT 0 backfills existing accounts, which is the right start
+    — an account's history is not retroactively charged against the cap.
+    """
+    try:
+        columns = {column["name"] for column in inspect(engine).get_columns("users")}
+        if "reviews_used" in columns:
+            return
+
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN reviews_used INTEGER "
+                    "NOT NULL DEFAULT 0"
+                )
+            )
+        logger.info("Added users.reviews_used, defaulting existing accounts to 0")
+    except Exception:
+        logger.exception("Could not add the users.reviews_used column")
+
+
 def init_db():
     if engine is None:
         logger.warning("DATABASE_URL unset; skipping database init.")
@@ -93,3 +118,4 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _relax_handle_uniqueness()
     _add_user_role_column()
+    _add_user_reviews_used_column()

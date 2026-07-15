@@ -419,13 +419,7 @@ def _review_limit_reached(repo_name: str) -> bool:
                 if owner is None or owner.role == ROLE_ADMIN:
                     return False
 
-                review_count = (
-                    db.query(Review)
-                    .join(Installation)
-                    .filter(Installation.user_id == user_id)
-                    .count()
-                )
-                if review_count < NON_ADMIN_REVIEW_LIMIT:
+                if owner.reviews_used < NON_ADMIN_REVIEW_LIMIT:
                     return False
 
             return True
@@ -529,6 +523,13 @@ def _persist_review(repo_name: str, pr: PR, result: ReviewResult, status: str) -
                     message=comment.message,
                     suggestion=comment.suggestion,
                 ))
+
+            # Charge the review against the owner's quota in the same transaction as
+            # the rows it produced, so the counter can never drift from the history
+            # it represents. Each active installation here belongs to a distinct user
+            # (the key is unique per user), so this charges every owner exactly once.
+            if installation.user is not None:
+                installation.user.reviews_used += 1
 
         db.commit()
     finally:
@@ -888,9 +889,9 @@ def get_stats(current_user: User = Depends(get_current_user), db: Session = Depe
         # when it is hit, not just as PRs silently going unreviewed. Admins are
         # exempt, so they get null and the banner never shows.
         "reviewLimit": None if current_user.role == ROLE_ADMIN else {
-            "used": total_prs,
+            "used": current_user.reviews_used,
             "limit": NON_ADMIN_REVIEW_LIMIT,
-            "reached": total_prs >= NON_ADMIN_REVIEW_LIMIT,
+            "reached": current_user.reviews_used >= NON_ADMIN_REVIEW_LIMIT,
         },
         "stats": [
             {

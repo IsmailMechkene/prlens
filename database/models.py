@@ -49,6 +49,19 @@ class User(Base):
         nullable=False,
     )
 
+    # How many reviews this account has spent against NON_ADMIN_REVIEW_LIMIT (see
+    # prlens.webhook.app). A dedicated counter rather than COUNT(reviews) so it is
+    # not refunded when a repo is disconnected and its reviews cascade away — and so
+    # it can be reset out of band by scripts/reset_reviews.py. server_default, like
+    # role above, backfills the rows an older deployment already has. Admins are
+    # exempt from the limit, so this is only ever read for ordinary users.
+    reviews_used: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
+
     installations: Mapped[list["Installation"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
