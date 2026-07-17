@@ -2,9 +2,9 @@
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
-[![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-147%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/reviewer%20core-99%25-brightgreen.svg)](#testing)
-[![Eval precision](https://img.shields.io/badge/eval%20precision-86.7%25-brightgreen.svg)](#evaluation-results)
+[![Eval precision](https://img.shields.io/badge/eval%20precision-~80%25%20(35%20cases)-green.svg)](#evaluation-results)
 
 **PRLens is an AI code reviewer for GitHub Pull Requests.** It reads the diff of every PR, uses GPT-4o (via Azure OpenAI) to find real security, quality, and performance issues, and posts inline comments, a quality score, labels, and a formal review verdict — all automatically. Drop in a workflow file or install it as a GitHub App; end users get reviews with zero manual effort.
 
@@ -111,7 +111,7 @@ PRLens also applies labels (e.g. `needs-changes`, `security-concern`), submits a
 - **Parallel analysis** — one LLM call per file, fanned out with a `ThreadPoolExecutor`.
 - **GitHub App auth** — JWT-signed installation tokens with automatic refresh before expiry (also supports a plain PAT).
 - **Two deployment modes** — GitHub Actions (no server) or a FastAPI webhook server (no per-repo setup, plus the dashboard).
-- **Validated** — 117 unit tests, 99% coverage of the reviewer core, plus an eval harness reporting **86.7% precision** (spec requires ≥ 70%).
+- **Validated** — 147 unit tests, 99% coverage of the reviewer core, plus a 35-case eval harness reporting **~80% precision** (spec requires ≥ 70%).
 
 ---
 
@@ -521,7 +521,11 @@ eval/                      # Offline evaluation harness
 
 ## Evaluation results
 
-PRLens ships with an offline eval harness (`eval/`) of hand-crafted diffs with known-good expectations. A case passes if the reviewer returns a finding of the expected type at or above the expected severity — and for "clean" cases, if it returns **no** comments.
+PRLens ships with an offline eval harness (`eval/`) of 35 hand-crafted diffs with known-good expectations. Each diff seeds one specific issue (or, for the "clean" cases, none at all).
+
+A case passes only if the reviewer returns a finding that is **(a)** of the expected type, **(b)** at or above the expected severity, and **(c)** actually about the seeded issue — the message must mention it (`expected_keywords`). Clean cases invert this: they pass only if the reviewer returns **no** comments at all.
+
+Condition (c) matters more than it looks. Without it a case passes on any comment of roughly the right shape, and since `quality` is both the commonest type and the fallback for an unrecognised label ([`review.py`](prlens/models/review.py)), "a quality finding at INFO or above" is satisfied by essentially any remark — including one about a completely different issue. Several cases did exactly that before the check was added.
 
 Run it against your Azure OpenAI deployment:
 
@@ -529,17 +533,27 @@ Run it against your Azure OpenAI deployment:
 python -m eval.run_eval
 ```
 
-**Latest run — 13 / 15 cases, 86.7% precision** (spec requires ≥ 70%):
+**Representative run — 28 / 35 cases, 80.0% precision** (spec requires ≥ 70%):
 
 | Category | Cases | Passed | What it checks |
 | --- | --- | --- | --- |
-| Security | 5 | 5 | Hardcoded secrets, SQL injection, path traversal, command injection |
-| Quality | 4 | 4 | Deep nesting, duplication, bare `except`, god functions |
-| Clean | 3 | 2 | Genuinely clean code produces **no** false-positive comments |
-| Mixed | 3 | 2 | Multiple issue types in one diff (security + quality + performance) |
-| **Total** | **15** | **13** | **86.7% precision** |
+| Security | 10 | 10 | Hardcoded secrets, SQL injection, path traversal, command injection, insecure deserialization, weak hashing, SSRF, disabled TLS verification, XSS |
+| Quality | 8 | 7 | Deep nesting, duplication, bare `except`, god functions, mutable default args, magic numbers, dead code, overly broad exception handling |
+| Style | 2 | 1 | Inconsistent naming conventions, non-descriptive variable names |
+| Documentation | 2 | 1 | Missing docstrings on public APIs, comments that no longer match the code |
+| Performance | 2 | 2 | Quadratic string concatenation, loading a whole file into memory instead of streaming |
+| Clean | 6 | 2 | Genuinely clean/safe code produces **no** false-positive comments |
+| Mixed | 5 | 5 | Multiple issue types in one diff (security + quality + performance + style) |
+| **Total** | **35** | **28** | **80.0% precision** |
 
-The two remaining misses are false positives on borderline "clean" cases — see [Limitations](#limitations-and-known-issues).
+The reviewer is an LLM, so the score moves between runs: three consecutive runs of this set scored **80.0%, 80.0%, and 82.9%**. Treat ~80% as the figure and the single-run number as noise.
+
+The failures are not scattered — across those three runs they concentrate in two specific weaknesses:
+
+- **False positives on clean code.** Four of the six clean cases fail *every* run. Safe, idiomatic patterns — a parameterized query, `subprocess.run` without `shell=True`, a guarded division, a recursive factorial with a proper base case — still draw a comment. This is the single largest source of lost points and the most visible failure mode in practice, since it costs a reviewer's attention on a PR that was fine.
+- **A documentation blind spot.** `missing_docstring_public_api` fails every run: the reviewer comments on the class (error handling, input validation) but never once remarks that the public methods are undocumented.
+
+Security is the strongest category (10/10 every run). See [Limitations](#limitations-and-known-issues).
 
 ---
 
@@ -557,7 +571,7 @@ pytest
 pytest --cov=prlens --cov-report=term-missing
 ```
 
-**117 tests.** Coverage is **99% across the reviewer core** — config, GitHub client (PAT **and** GitHub App auth), PR fetcher/publisher, analyzer, LLM client, and the agent orchestrator. The webhook/dashboard API layer in `prlens/webhook/app.py` is covered for signature verification, event dispatch, and the whole admin section — including the authorization rule itself, which is exercised against a real (in-memory SQLite) database rather than a mocked user. Its per-user CRUD endpoints remain largely untested (see [Limitations](#limitations-and-known-issues)).
+**147 tests.** Coverage is **99% across the reviewer core** — config, GitHub client (PAT **and** GitHub App auth), PR fetcher/publisher, analyzer, LLM client, and the agent orchestrator. The webhook/dashboard API layer in `prlens/webhook/app.py` is covered for signature verification, event dispatch, and the whole admin section — including the authorization rule itself, which is exercised against a real (in-memory SQLite) database rather than a mocked user. Its per-user CRUD endpoints remain largely untested (see [Limitations](#limitations-and-known-issues)).
 
 The frontend has no test suite; it is gated on `tsc --noEmit` and `eslint`:
 
@@ -574,7 +588,8 @@ npm run build      # runs tsc -b, then vite build
 - **Single-file context.** The LLM reviews one file at a time and has no visibility into the rest of the PR, so cross-file issues (e.g. a caller/callee contract broken across two files) can be missed.
 - **Diff-only.** Only lines present in the diff are reviewed; pre-existing issues in unchanged code are out of scope by design.
 - **LLM non-determinism.** Findings and severities can vary run to run. Scores and verdicts are computed deterministically from whatever the model returns, but the inputs themselves are probabilistic.
-- **Occasional false positives on clean code.** Reflected in the eval (2/3 clean cases pass); very defensive or unusual-but-correct code can still draw a comment.
+- **False positives on clean code.** The largest known weakness, and consistent rather than occasional: only 2 of the 6 clean eval cases pass, and the same four fail on every run. Safe, idiomatic code — a parameterized query, `subprocess.run` without `shell=True`, a guarded division, a recursive factorial with a proper base case — still draws a comment, usually a speculative one about unvalidated input.
+- **Documentation findings are unreliable.** The reviewer rarely raises a missing docstring on its own: the `missing_docstring_public_api` eval case fails every run, drawing comments about error handling and validation while never noting that the public methods are undocumented.
 - **Language coverage.** Only Python, JavaScript, TypeScript, and Java are recognized for language filtering.
 - **Azure OpenAI required.** The LLM client is wired for an Azure OpenAI endpoint; other providers would require adapting `prlens/llm/client.py`.
 - **Reviewer assignment needs collaborators.** Mapped reviewers must be repository collaborators or GitHub rejects the request (logged as a warning, non-fatal).

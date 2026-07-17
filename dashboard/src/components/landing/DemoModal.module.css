@@ -1,0 +1,43 @@
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 11px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: var(--rad-sm);
+  color: var(--fg-muted);
+  background: none;
+  cursor: pointer;
+}
+.close:hover {
+  color: var(--fg-default);
+  background: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+.video {
+  display: block;
+  width: 100%;
+  /* The panel is capped at 960px but the viewport may be shorter than the video is
+     tall; leave room for the header and the backdrop's padding so the controls
+     never sit off-screen. */
+  max-height: calc(100vh - 140px);
+  background: #000;
+}

@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
 import { GitHubIcon } from '../ui/GitHubIcon'
 import { Button } from '../ui/Button'
+import { DemoModal } from './DemoModal'
 import styles from './Hero.module.css'
 
 export function Hero() {
   const navigate = useNavigate()
+  const [demoOpen, setDemoOpen] = useState(false)
   return (
     <header className={styles.hero}>
       <div className={styles.pill}>
@@ -33,12 +36,14 @@ export function Hero() {
             <GitHubIcon size={18} /> Login with GitHub
           </Button>
         </span>
-        <Button variant="secondary" size="lg" onClick={() => navigate('/dashboard')}>
-          View demo <Icon name="arrow-right" size={16} />
+        <Button variant="secondary" size="lg" onClick={() => setDemoOpen(true)}>
+          <Icon name="play" size={16} /> Watch demo
         </Button>
       </div>
 
       <div className={styles.fineprint}>Free for open source · No credit card required</div>
+
+      <DemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </header>
   )
 }

@@ -25,6 +25,13 @@
   outline: none;
 }
 
+/* Media fills the panel edge-to-edge, so the padding lives on the content instead. */
+.wide {
+  max-width: 960px;
+  padding: 0;
+  overflow: hidden;
+}
+
 @keyframes fade {
   from {
     opacity: 0;

@@ -8,6 +8,8 @@ interface ModalProps {
   /** Escape, a backdrop click, or the close button. Suppress while a request is in flight. */
   onClose: () => void
   title: string
+  /** "wide" fits media; the default width suits the confirm prompts. */
+  size?: 'default' | 'wide'
   children: ReactNode
 }
 
@@ -18,7 +20,7 @@ interface ModalProps {
  * create their own stacking contexts, so a modal rendered where it is used would
  * be trapped underneath them.
  */
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, size = 'default', children }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null)
   const restoreFocusTo = useRef<HTMLElement | null>(null)
 
@@ -56,7 +58,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     >
       <div
         ref={panel}
-        className={styles.panel}
+        className={size === 'wide' ? `${styles.panel} ${styles.wide}` : styles.panel}
         role="dialog"
         aria-modal="true"
         aria-label={title}

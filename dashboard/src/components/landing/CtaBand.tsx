@@ -1,12 +1,15 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../ui/Icon'
 import { GitHubIcon } from '../ui/GitHubIcon'
 import { Button } from '../ui/Button'
+import { DemoModal } from './DemoModal'
 import styles from './CtaBand.module.css'
 
 /** Closing call-to-action panel before the footer. */
 export function CtaBand() {
   const navigate = useNavigate()
+  const [demoOpen, setDemoOpen] = useState(false)
   return (
     <section className={styles.section}>
       <div className={styles.card}>
@@ -22,12 +25,14 @@ export function CtaBand() {
           <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')}>
             <GitHubIcon size={18} /> Get started free
           </Button>
-          <Button variant="secondary" size="lg" onClick={() => navigate('/dashboard')}>
-            View live demo <Icon name="arrow-right" size={16} />
+          <Button variant="secondary" size="lg" onClick={() => setDemoOpen(true)}>
+            <Icon name="play" size={16} /> Watch demo
           </Button>
         </div>
         <div className={styles.fineprint}>Free for open source · No credit card required</div>
       </div>
+
+      <DemoModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </section>
   )
 }
