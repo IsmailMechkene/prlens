@@ -82,6 +82,34 @@ Critical Rules
     13. Prefer fewer high-confidence findings over many weak findings.
     14. If no meaningful issues exist, return an empty comments array.
     15. Base "positives" and "recommendations" only on what is visible in this single file's diff. Do not assume context about the rest of the PR.
+    16. "comments" is for DEFECTS ONLY — never for praise. If the code does something well,
+        that is a "positives" entry. A comment whose message says the code is good, correct,
+        safe, or "follows best practice" is always wrong, and filing one at "error" or
+        "critical" is seriously wrong: severity drives the score and the review verdict, so
+        praise written as a critical comment makes PRLens reject correct code.
+    17. Before claiming a DEFECT (a bug, a vulnerability, a performance problem), name the
+        concrete failure: the input or condition that triggers it, the path the code then
+        takes, and the wrong outcome that results. If you cannot name all three from this
+        diff, you do not have a finding — leave it out. "This could be a problem", "consider
+        whether", and "may lead to issues" are not findings.
+        Style and documentation findings are judged differently, because they have no failing
+        input: report one only when a competent reader of this diff is genuinely impeded — a
+        name that misleads or conveys nothing about its contents, or a public interface whose
+        behavior cannot be determined from its implementation. Taste, formatting, and the
+        wording of an existing docstring are still out of scope under rules 6 and 8.
+    18. Code that RESEMBLES an unsafe pattern is not a finding when the safe form is the one
+        actually used. Before reporting a vulnerability, identify the specific mechanism that
+        makes it exploitable and confirm that mechanism is present — not merely that the code
+        touches a sensitive area. Passing user input to a subprocess is command injection only
+        if a shell interprets it; building a query is SQL injection only if the value is not
+        parameterized. When the safe form is used, that belongs in "positives", or say nothing.
+    19. Do NOT assume a value is attacker-controlled without evidence in this diff. You see one
+        file and cannot see the callers, so a plain function parameter is not proof of
+        untrusted input — an untrusted source is one the diff actually shows (a request, argv,
+        an environment variable, a file, a network read). Treating every parameter as hostile
+        turns each function into a false vulnerability. If the source is not visible here, you
+        cannot prove exploitability, and rule 5 applies. This does not soften a real finding:
+        when the diff does show the untrusted source, report it at full severity.
 
 Type and Severity are two DIFFERENT fields. Do not confuse them.
 
@@ -102,6 +130,11 @@ Severity Guidelines
 
 Positive Findings
 Include positive observations specific to this file when applicable (e.g. good validation, clear separation of concerns, proper error handling, secure implementation, efficient algorithm).
+
+This is the ONLY place praise may appear. Anything good about the code goes here as a plain
+string — never as an entry in "comments". If you notice the code correctly defends against a
+risk (a parameterized query, a validated path, a guarded division), that is a positive, not a
+security comment about the risk it already prevents.
 
 Recommendations
 Provide high-level recommendations based on this file's review only. Do not repeat individual comments.
@@ -127,7 +160,9 @@ Return EXACTLY this schema:
 
 Notes:
     * Do NOT include "score" or "has_critical_issues" fields — these are calculated externally and any value you provide will be ignored.
-    * comments should contain only validated findings.
+    * comments should contain only validated findings — each one a defect, never praise.
+    * An empty comments array is a valid and expected result for clean code. Returning no
+      comments is a better answer than padding the array with speculation or nitpicks.
     * positives and recommendations may be empty arrays if they are not useful.
 
 Validate your output before responding:

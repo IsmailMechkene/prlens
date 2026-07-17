@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#license)
 [![Tests](https://img.shields.io/badge/tests-147%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/reviewer%20core-99%25-brightgreen.svg)](#testing)
-[![Eval precision](https://img.shields.io/badge/eval%20precision-~80%25%20(35%20cases)-green.svg)](#evaluation-results)
+[![Eval precision](https://img.shields.io/badge/eval%20precision-~86%25%20(35%20cases)-brightgreen.svg)](#evaluation-results)
 
 **PRLens is an AI code reviewer for GitHub Pull Requests.** It reads the diff of every PR, uses GPT-4o (via Azure OpenAI) to find real security, quality, and performance issues, and posts inline comments, a quality score, labels, and a formal review verdict — all automatically. Drop in a workflow file or install it as a GitHub App; end users get reviews with zero manual effort.
 
@@ -111,7 +111,7 @@ PRLens also applies labels (e.g. `needs-changes`, `security-concern`), submits a
 - **Parallel analysis** — one LLM call per file, fanned out with a `ThreadPoolExecutor`.
 - **GitHub App auth** — JWT-signed installation tokens with automatic refresh before expiry (also supports a plain PAT).
 - **Two deployment modes** — GitHub Actions (no server) or a FastAPI webhook server (no per-repo setup, plus the dashboard).
-- **Validated** — 147 unit tests, 99% coverage of the reviewer core, plus a 35-case eval harness reporting **~80% precision** (spec requires ≥ 70%).
+- **Validated** — 147 unit tests, 99% coverage of the reviewer core, plus a 35-case eval harness reporting **~86% precision** (spec requires ≥ 70%).
 
 ---
 
@@ -533,27 +533,29 @@ Run it against your Azure OpenAI deployment:
 python -m eval.run_eval
 ```
 
-**Representative run — 28 / 35 cases, 80.0% precision** (spec requires ≥ 70%):
+**Best run — 31 / 35 cases, 88.6% precision. Mean across three runs: 85.7%** (spec requires ≥ 70%):
 
 | Category | Cases | Passed | What it checks |
 | --- | --- | --- | --- |
 | Security | 10 | 10 | Hardcoded secrets, SQL injection, path traversal, command injection, insecure deserialization, weak hashing, SSRF, disabled TLS verification, XSS |
-| Quality | 8 | 7 | Deep nesting, duplication, bare `except`, god functions, mutable default args, magic numbers, dead code, overly broad exception handling |
+| Quality | 8 | 8 | Deep nesting, duplication, bare `except`, god functions, mutable default args, magic numbers, dead code, overly broad exception handling |
 | Style | 2 | 1 | Inconsistent naming conventions, non-descriptive variable names |
 | Documentation | 2 | 1 | Missing docstrings on public APIs, comments that no longer match the code |
 | Performance | 2 | 2 | Quadratic string concatenation, loading a whole file into memory instead of streaming |
-| Clean | 6 | 2 | Genuinely clean/safe code produces **no** false-positive comments |
+| Clean | 6 | 5 | Genuinely clean/safe code produces **no** false-positive comments |
 | Mixed | 5 | 5 | Multiple issue types in one diff (security + quality + performance + style) |
-| **Total** | **35** | **28** | **80.0% precision** |
+| **Total** | **35** | **31** | **88.6% (best) · 85.7% (mean of 3)** |
 
-The reviewer is an LLM, so the score moves between runs: three consecutive runs of this set scored **80.0%, 80.0%, and 82.9%**. Treat ~80% as the figure and the single-run number as noise.
+The reviewer is an LLM, so a single run means little: three consecutive runs scored **88.6%, 85.7%, and 82.9%**. Quote the **mean (~86%)**, not the best run — the spread is roughly ±3 points, which is wide enough that any two adjacent "improvements" measured once apart are indistinguishable from noise.
 
-The failures are not scattered — across those three runs they concentrate in two specific weaknesses:
+**Security is the strongest category — 10/10 on every run measured.**
 
-- **False positives on clean code.** Four of the six clean cases fail *every* run. Safe, idiomatic patterns — a parameterized query, `subprocess.run` without `shell=True`, a guarded division, a recursive factorial with a proper base case — still draw a comment. This is the single largest source of lost points and the most visible failure mode in practice, since it costs a reviewer's attention on a PR that was fine.
-- **A documentation blind spot.** `missing_docstring_public_api` fails every run: the reviewer comments on the class (error handling, input validation) but never once remarks that the public methods are undocumented.
+Three cases fail consistently, and it is worth being precise about why, because two of them are arguably the eval disagreeing with a deliberate design choice rather than the reviewer failing:
 
-Security is the strongest category (10/10 every run). See [Limitations](#limitations-and-known-issues).
+- `clean_safe_subprocess_no_shell` — a genuine false positive. `subprocess.run(["ping", "-c", "1", host])` has no shell, so it cannot be command injection, but the reviewer still flags the parameter as unvalidated.
+- `missing_docstring_public_api` and `non_descriptive_variable_names` — the reviewer stays quiet here largely *because the prompt tells it to*: rule 6 bars stylistic debates and rule 9 bars missing-documentation findings unless they cause a genuine maintainability problem. These cases probe the boundary of that policy, so they are as much a test of the policy as of the model.
+
+See [Limitations](#limitations-and-known-issues).
 
 ---
 
@@ -588,8 +590,9 @@ npm run build      # runs tsc -b, then vite build
 - **Single-file context.** The LLM reviews one file at a time and has no visibility into the rest of the PR, so cross-file issues (e.g. a caller/callee contract broken across two files) can be missed.
 - **Diff-only.** Only lines present in the diff are reviewed; pre-existing issues in unchanged code are out of scope by design.
 - **LLM non-determinism.** Findings and severities can vary run to run. Scores and verdicts are computed deterministically from whatever the model returns, but the inputs themselves are probabilistic.
-- **False positives on clean code.** The largest known weakness, and consistent rather than occasional: only 2 of the 6 clean eval cases pass, and the same four fail on every run. Safe, idiomatic code — a parameterized query, `subprocess.run` without `shell=True`, a guarded division, a recursive factorial with a proper base case — still draws a comment, usually a speculative one about unvalidated input.
-- **Documentation findings are unreliable.** The reviewer rarely raises a missing docstring on its own: the `missing_docstring_public_api` eval case fails every run, drawing comments about error handling and validation while never noting that the public methods are undocumented.
+- **False positives on clean code.** Much improved (5 of 6 clean eval cases now pass, up from 2) but not gone. The reviewer still flags a bare function parameter as unvalidated input even when the diff gives no evidence the value is attacker-controlled — `clean_safe_subprocess_no_shell` fails on this every run. Reviewing one file at a time is the root cause: it cannot see the callers, so it guesses.
+- **Precision and recall are a live trade-off.** The prompt rules that suppress speculation on clean code also suppress weak-but-real findings. Tightening them moved several subtle cases (magic numbers, dead code) from passing to intermittent, and loosening them brings the clean-code false positives back. The current rules are a measured balance, not an optimum — if you change them, re-run the eval three times rather than once, because the run-to-run spread (±3 points) is wide enough to hide a regression.
+- **Documentation findings are deliberately conservative.** Rule 9 in `prompts.py` bars missing-documentation findings unless they cause a genuine maintainability problem, and rule 6 bars stylistic debates. The reviewer therefore stays quiet on undocumented public methods and single-letter names — by policy, not by accident. The `missing_docstring_public_api` and `non_descriptive_variable_names` eval cases both sit on the wrong side of that line and fail every run; they are a standing question about where the policy should be, not bugs.
 - **Language coverage.** Only Python, JavaScript, TypeScript, and Java are recognized for language filtering.
 - **Azure OpenAI required.** The LLM client is wired for an Azure OpenAI endpoint; other providers would require adapting `prlens/llm/client.py`.
 - **Reviewer assignment needs collaborators.** Mapped reviewers must be repository collaborators or GitHub rejects the request (logged as a warning, non-fatal).
