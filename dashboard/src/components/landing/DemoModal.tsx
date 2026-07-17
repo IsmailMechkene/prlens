@@ -10,9 +10,9 @@ interface DemoModalProps {
 /**
  * Plays the recorded product demo.
  *
- * The file is ~34 MB, so it must not land on every visitor who never asks for it:
  * Modal renders nothing while closed, so the <video> — and its download — only
- * comes into existence once someone actually opens the demo.
+ * comes into existence once someone actually opens the demo, rather than on every
+ * visit from someone who never asks for it.
  */
 export function DemoModal({ open, onClose }: DemoModalProps) {
   return (
@@ -24,9 +24,10 @@ export function DemoModal({ open, onClose }: DemoModalProps) {
         </button>
       </div>
 
-      {/* autoPlay is a hint, not a guarantee — Safari and Firefox may refuse it for
-          audio, which is why the native controls are always present as the fallback. */}
-      <video className={styles.video} src="/prlens_demo.mp4" controls autoPlay playsInline>
+      {/* The recording has no audio track at all, so `muted` costs the viewer nothing
+          and buys reliable autoplay: browsers block autoplay *with sound*, and without
+          this they would show a dead first frame until the user hit play. */}
+      <video className={styles.video} src="/prlens_demo.mp4" controls autoPlay muted playsInline>
         Your browser cannot play this video.{' '}
         <a href="/prlens_demo.mp4" download>
           Download it instead

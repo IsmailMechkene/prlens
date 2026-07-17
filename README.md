@@ -12,7 +12,7 @@ It also ships a **web dashboard**: sign in with GitHub, connect repositories in 
 
 > Built as an internship project at **Smartovate**.
 
-**Live:** the dashboard is deployed at [prlens.ismailmechkene.dev](https://prlens.ismailmechkene.dev/), backed by the FastAPI server + Postgres running on [Railway](https://railway.app/).
+**Live:** the dashboard is deployed at [prlens.ismailmechkene.dev](https://prlens.ismailmechkene.dev/), backed by the FastAPI server on [Railway](https://railway.app/) and Postgres on [Supabase](https://supabase.com/).
 
 ---
 
